@@ -1,0 +1,30 @@
+# ==============================================================================
+# ExamPrep Local Development Docker Compose
+# 
+# SECURITY NOTICE:
+# The credentials below are strictly for local development and testing.
+# DO NOT use these credentials or expose this setup in any production environment.
+# ==============================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: examprep_postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: examprep
+      POSTGRES_PASSWORD: examprep_secret
+      POSTGRES_DB: examprep_dev
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U examprep -d examprep_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local
