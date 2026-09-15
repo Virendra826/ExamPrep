@@ -16,7 +16,8 @@
     "lint": "npm run lint --prefix backend && npm run lint --prefix frontend",
     "lint:backend": "npm run lint --prefix backend",
     "lint:frontend": "npm run lint --prefix frontend",
-    "format": "npm run format --prefix backend && npm run format --prefix frontend"
+    "format": "npm run format --prefix backend && npm run format --prefix frontend",
+    "db:seed": "npm run db:seed --prefix backend"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
