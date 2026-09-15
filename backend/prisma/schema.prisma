@@ -1,0 +1,277 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// -----------------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------------
+
+enum Role {
+  STUDENT
+  ADMIN
+}
+
+enum QuestionType {
+  CONCEPT
+  PYQ
+}
+
+enum QuestionSource {
+  PDF
+  MANUAL
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum QuestionStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+}
+
+enum IngestionStatus {
+  UPLOADED
+  EXTRACTING
+  EXTRACTED
+  FAILED
+  REVIEWED
+}
+
+enum QuestionTypeFilter {
+  CONCEPT
+  PYQ
+  BOTH
+}
+
+enum OrderMode {
+  SEQUENTIAL
+  RANDOM
+}
+
+enum TimerMode {
+  FIXED
+  VARIABLE
+}
+
+enum AttemptStatus {
+  CREATED
+  STARTED
+  IN_PROGRESS
+  TIMEOUT
+  SUBMITTED
+  EVALUATED
+}
+
+// -----------------------------------------------------------------------------
+// Models
+// -----------------------------------------------------------------------------
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  password_hash String
+  name          String
+  role          Role
+  is_active     Boolean        @default(true)
+  created_at    DateTime       @default(now())
+  updated_at    DateTime       @updatedAt
+
+  refresh_tokens   RefreshToken[]
+  created_questions Question[]       @relation("QuestionCreator")
+  uploaded_batches  IngestionBatch[] @relation("BatchUploader")
+  created_quizzes   Quiz[]           @relation("QuizCreator")
+  quiz_attempts     QuizAttempt[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id         String    @id @default(uuid())
+  user_id    String
+  token_hash String
+  expires_at DateTime
+  revoked_at DateTime?
+  created_at DateTime  @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model Subject {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  chapters  Chapter[]
+  questions Question[]
+  quizzes   Quiz[]
+
+  @@map("subjects")
+}
+
+model Chapter {
+  id          String   @id @default(uuid())
+  subject_id  String
+  name        String
+  description String?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  subject   Subject    @relation(fields: [subject_id], references: [id], onDelete: Restrict)
+  questions Question[]
+  quizzes   Quiz[]
+
+  @@unique([subject_id, name])
+  @@map("chapters")
+}
+
+model Question {
+  id                 String          @id @default(uuid())
+  question_text      String
+  options            Json
+  correct_answer     String
+  explanation        String?
+  subject_id         String
+  chapter_id         String
+  question_type      QuestionType
+  source             QuestionSource
+  exam_name          String?
+  exam_year          Int?
+  difficulty         Difficulty?
+  status             QuestionStatus  @default(DRAFT)
+  ingestion_batch_id String?
+  created_by         String
+  created_at         DateTime        @default(now())
+  updated_at         DateTime        @updatedAt
+
+  subject         Subject         @relation(fields: [subject_id], references: [id], onDelete: Restrict)
+  chapter         Chapter         @relation(fields: [chapter_id], references: [id], onDelete: Restrict)
+  ingestion_batch IngestionBatch? @relation(fields: [ingestion_batch_id], references: [id], onDelete: SetNull)
+  creator         User            @relation("QuestionCreator", fields: [created_by], references: [id], onDelete: Restrict)
+  quiz_questions  QuizQuestion[]
+
+  @@index([subject_id, chapter_id, question_type, status])
+  @@map("questions")
+}
+
+model IngestionBatch {
+  id                String          @id @default(uuid())
+  uploaded_by       String
+  source_type       QuestionSource
+  original_filename String
+  storage_key       String?
+  status            IngestionStatus
+  error_message     String?
+  created_at        DateTime        @default(now())
+  updated_at        DateTime        @updatedAt
+
+  uploader  User       @relation("BatchUploader", fields: [uploaded_by], references: [id], onDelete: Restrict)
+  questions Question[]
+
+  @@map("ingestion_batches")
+}
+
+model Quiz {
+  id                     String             @id @default(uuid())
+  created_by_user_id     String
+  subject_id             String
+  chapter_id             String?
+  question_type_filter   QuestionTypeFilter
+  requested_count        Int
+  order_mode             OrderMode
+  timer_mode             TimerMode
+  timer_duration_seconds Int?
+  created_at             DateTime           @default(now())
+
+  creator        User           @relation("QuizCreator", fields: [created_by_user_id], references: [id], onDelete: Restrict)
+  subject        Subject        @relation(fields: [subject_id], references: [id], onDelete: Restrict)
+  chapter        Chapter?       @relation(fields: [chapter_id], references: [id], onDelete: Restrict)
+  quiz_questions QuizQuestion[]
+  attempts       QuizAttempt[]
+
+  @@map("quizzes")
+}
+
+model QuizQuestion {
+  id            String @id @default(uuid())
+  quiz_id       String
+  question_id   String
+  display_order Int
+
+  quiz              Quiz              @relation(fields: [quiz_id], references: [id], onDelete: Cascade)
+  question          Question          @relation(fields: [question_id], references: [id], onDelete: Restrict)
+  submitted_answers SubmittedAnswer[]
+
+  @@unique([quiz_id, question_id])
+  @@unique([quiz_id, display_order])
+  @@map("quiz_questions")
+}
+
+model QuizAttempt {
+  id                 String        @id @default(uuid())
+  quiz_id            String
+  user_id            String
+  status             AttemptStatus
+  started_at         DateTime?
+  submitted_at       DateTime?
+  time_taken_seconds Int?
+  created_at         DateTime      @default(now())
+  updated_at         DateTime      @updatedAt
+
+  quiz              Quiz              @relation(fields: [quiz_id], references: [id], onDelete: Restrict)
+  user              User              @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  submitted_answers SubmittedAnswer[]
+  result            Result?
+
+  @@map("quiz_attempts")
+}
+
+model SubmittedAnswer {
+  id               String    @id @default(uuid())
+  attempt_id       String
+  quiz_question_id String
+  selected_option  String?
+  is_correct       Boolean?
+  answered_at      DateTime?
+  created_at       DateTime  @default(now())
+
+  attempt       QuizAttempt  @relation(fields: [attempt_id], references: [id], onDelete: Cascade)
+  quiz_question QuizQuestion @relation(fields: [quiz_question_id], references: [id], onDelete: Restrict)
+
+  @@unique([attempt_id, quiz_question_id])
+  @@map("submitted_answers")
+}
+
+model Result {
+  id                 String   @id @default(uuid())
+  attempt_id         String   @unique
+  total_questions    Int
+  attempted_count    Int
+  correct_count      Int
+  incorrect_count    Int
+  unattempted_count  Int
+  marks_obtained     Float
+  total_marks        Float
+  percentage         Float
+  accuracy           Float
+  time_taken_seconds Int
+  evaluated_at       DateTime @default(now())
+
+  attempt QuizAttempt @relation(fields: [attempt_id], references: [id], onDelete: Cascade)
+
+  @@map("results")
+}
