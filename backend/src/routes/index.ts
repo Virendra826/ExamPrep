@@ -1,1 +1,1 @@
-export {};
+export * from "./health.routes.js";
