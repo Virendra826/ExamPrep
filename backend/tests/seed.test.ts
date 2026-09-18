@@ -26,6 +26,7 @@ describe("Database Seed Verification", () => {
 
   it("seeds the 3 core subjects", async () => {
     const subjects = await prisma.subject.findMany({
+      where: { name: { in: ["Compiler Design", "DBMS", "Operating Systems"] } },
       orderBy: { name: "asc" },
     });
 
@@ -36,6 +37,7 @@ describe("Database Seed Verification", () => {
 
   it("seeds exactly 3 chapters for each subject (9 chapters total)", async () => {
     const chapters = await prisma.chapter.findMany({
+      where: { subject: { name: { in: ["Compiler Design", "DBMS", "Operating Systems"] } } },
       include: { subject: true },
     });
 
@@ -53,6 +55,10 @@ describe("Database Seed Verification", () => {
 
   it("seeds exactly 30 questions with 10 questions per subject, mixing CONCEPT and PYQ", async () => {
     const questions = await prisma.question.findMany({
+      where: {
+        subject: { name: { in: ["Compiler Design", "DBMS", "Operating Systems"] } },
+        source: "MANUAL",
+      },
       include: { subject: true },
     });
 

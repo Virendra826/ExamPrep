@@ -16,6 +16,8 @@ const envSchema = z.object({
     .min(16, "JWT_REFRESH_SECRET must be at least 16 characters long"),
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
   STORAGE_DRIVER: z.enum(["local", "s3", "supabase"]).default("local"),
+  VISION_PROVIDER: z.enum(["disabled", "anthropic", "openai"]).default("disabled"),
+  VISION_API_KEY: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

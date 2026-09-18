@@ -23,3 +23,7 @@ healthRouter.get("/health", async (_req: Request, res: Response) => {
     });
   }
 });
+
+healthRouter.get("/ping", (_req: Request, res: Response) => {
+  res.status(200).json({ status: "ok" });
+});

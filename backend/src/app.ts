@@ -11,6 +11,14 @@ import {
 } from "./middleware/index.js";
 import { healthRouter } from "./routes/health.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
+import { subjectRouter } from "./modules/subjects/subject.routes.js";
+import { chapterRouter } from "./modules/chapters/chapter.routes.js";
+import { questionRouter } from "./modules/questions/question.routes.js";
+import { ingestionRouter } from "./modules/ingestion/ingestion.routes.js";
+import { quizRouter } from "./modules/quiz/quiz.routes.js";
+import { attemptRouter } from "./modules/attempts/attempt.routes.js";
+import { analyticsRouter } from "./modules/analytics/analytics.routes.js";
+import { adminRouter } from "./modules/admin/admin.routes.js";
 import { NotFoundError, ValidationError } from "./utils/errors.js";
 
 export const app: Express = express();
@@ -32,8 +40,18 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // API Routes
+app.use("/", healthRouter);
 app.use("/api/v1", healthRouter);
 app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/subjects", subjectRouter);
+app.use("/api/v1/chapters", chapterRouter);
+app.use("/api/v1/questions", questionRouter);
+app.use("/api/v1/ingestion", ingestionRouter);
+app.use("/api/v1/quiz", quizRouter);
+app.use("/api/v1/quizzes", quizRouter);
+app.use("/api/v1/attempts", attemptRouter);
+app.use("/api/v1/analytics", analyticsRouter);
+app.use("/api/v1/admin", adminRouter);
 
 // Test-only endpoints for verifying error handling and RBAC
 if (process.env.NODE_ENV === "test") {

@@ -1,11 +1,13 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import App from "./App";
 
 describe("App Smoke Test", () => {
-  it("renders ExamPrep placeholder heading without crashing", () => {
+  it("renders ExamPrep login screen without crashing", async () => {
     render(<App />);
-    const heading = screen.getByRole("heading", { name: /ExamPrep/i });
-    expect(heading).toBeInTheDocument();
+    await waitFor(() => {
+      const heading = screen.getByRole("heading", { name: /ExamPrep/i });
+      expect(heading).toBeInTheDocument();
+    });
   });
 });

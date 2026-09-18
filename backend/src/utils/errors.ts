@@ -27,6 +27,22 @@ export class ValidationError extends AppError {
   }
 }
 
+export class UnprocessableEntityError extends AppError {
+  constructor(message = "Semantic validation failed", details?: unknown) {
+    super(422, "UNPROCESSABLE_ENTITY", message, details);
+  }
+}
+
+export class InsufficientQuestionsError extends AppError {
+  constructor(available: number, requested: number) {
+    super(
+      422,
+      "INSUFFICIENT_QUESTIONS",
+      `Only ${available} questions available, ${requested} requested.`
+    );
+  }
+}
+
 export class UnauthorizedError extends AppError {
   constructor(code = "UNAUTHORIZED", message = "Authentication required", details?: unknown) {
     super(401, code, message, details);

@@ -152,11 +152,13 @@ model Question {
   exam_name          String?
   exam_year          Int?
   difficulty         Difficulty?
-  status             QuestionStatus  @default(DRAFT)
-  ingestion_batch_id String?
-  created_by         String
-  created_at         DateTime        @default(now())
-  updated_at         DateTime        @updatedAt
+  status              QuestionStatus  @default(DRAFT)
+  ingestion_batch_id  String?
+  diagram_url         String?
+  extraction_metadata Json?
+  created_by          String
+  created_at          DateTime        @default(now())
+  updated_at          DateTime        @updatedAt
 
   subject         Subject         @relation(fields: [subject_id], references: [id], onDelete: Restrict)
   chapter         Chapter         @relation(fields: [chapter_id], references: [id], onDelete: Restrict)
