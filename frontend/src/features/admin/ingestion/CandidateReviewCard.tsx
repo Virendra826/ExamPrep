@@ -204,6 +204,13 @@ export const CandidateReviewCard: React.FC<CandidateReviewCardProps> = ({
               </span>
             )}
 
+            {(candidate.extractionMethod === "GEMINI_DOCUMENT" || candidate.extractionMethod === "GEMINI_HYBRID") && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-indigo-500/10 text-[11px] font-medium text-indigo-300 border border-indigo-500/20">
+                <Sparkles className="w-3 h-3 mr-1 text-indigo-400" />
+                Gemini
+              </span>
+            )}
+
             {renderConfidenceBadge()}
           </div>
 

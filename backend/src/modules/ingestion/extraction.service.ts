@@ -743,15 +743,14 @@ export class ExtractionService {
         }
         finalStem = cleanWatermarks(finalStem);
 
-        // Diagram association
+        // Diagram association: preserve diagramUrl in candidate without polluting question text
         let diagramUrl: string | null = null;
         if (pq.imageIndex !== undefined && qPage.images[pq.imageIndex]?.dataUrl) {
           diagramUrl = qPage.images[pq.imageIndex].dataUrl!;
         }
 
-        if (diagramUrl && !finalStem.includes('![Figure]')) {
-          finalStem = `${finalStem}\n\n![Figure](${diagramUrl})`;
-        }
+        // Sanitize finalStem to ensure no raw data:image payloads exist in question text
+        finalStem = finalStem.replace(/!\[.*?\]\(data:image\/[^)]+\)/gi, '').replace(/data:image\/[a-zA-Z0-9\+\-\.]+;base64,[A-Za-z0-9+/=]+/gi, '').trim();
 
         // Resolve correct answer
         const detectedAnsLetter = pq.questionNumber ? answerKeyMap.get(pq.questionNumber) : '';

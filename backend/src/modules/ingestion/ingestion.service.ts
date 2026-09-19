@@ -1,7 +1,9 @@
 import crypto from 'crypto';
 import { prisma } from '../../config/prisma.js';
 import { storageProvider } from '../../storage/index.js';
+import { env } from '../../config/env.js';
 import { extractionService } from './extraction.service.js';
+import { geminiExtractionService } from './gemini/index.js';
 import { ingestionStore } from './ingestion.store.js';
 import {
   ValidationError,
@@ -75,11 +77,31 @@ export class IngestionService {
 
     try {
       let candidates: CandidateQuestion[] = [];
-      try {
-        candidates = await extractionService.extractFromPdf(file.buffer);
-      } catch {
-        const rawText = await extractionService.extractTextFromPdf(file.buffer);
-        candidates = extractionService.parseCandidatesFromText(rawText);
+
+      // 1. PRIMARY: Gemini Document Understanding (if configured and enabled)
+      if (geminiExtractionService.isConfigured() && env.EXTRACTION_ENGINE !== 'local') {
+        try {
+          const geminiResult = await geminiExtractionService.extractQuestionsFromPdf(
+            file.buffer,
+            originalFilename
+          );
+          if (geminiResult.candidates && geminiResult.candidates.length > 0) {
+            candidates = geminiResult.candidates;
+          }
+        } catch (geminiErr: unknown) {
+          const msg = geminiErr instanceof Error ? geminiErr.message : 'Unknown Gemini error';
+          console.warn(`[Ingestion] Primary Gemini extraction failed (${msg}), falling back to local PDF parser...`);
+        }
+      }
+
+      // 2. FALLBACK: Deterministic local PDF parser
+      if (candidates.length === 0) {
+        try {
+          candidates = await extractionService.extractFromPdf(file.buffer);
+        } catch {
+          const rawText = await extractionService.extractTextFromPdf(file.buffer);
+          candidates = extractionService.parseCandidatesFromText(rawText);
+        }
       }
 
       // 7. Store candidate questions in in-memory store

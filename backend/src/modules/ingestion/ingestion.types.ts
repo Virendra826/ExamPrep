@@ -18,7 +18,7 @@ export interface CandidateQuestion {
   exam_year?: number | null;
   needsReview: boolean;
   confidence?: 'HIGH' | 'MEDIUM' | 'LOW';
-  extractionMethod?: 'TEXT' | 'TEXT_PLUS_VISION';
+  extractionMethod?: 'TEXT' | 'TEXT_PLUS_VISION' | 'GEMINI_DOCUMENT' | 'GEMINI_HYBRID';
   sourcePages?: number[];
   reviewReason?: string | null;
   subject_id?: string;

@@ -5,8 +5,10 @@ The Ingestion module (`backend/src/modules/ingestion`) handles the intake of edu
 
 Per the master architecture guidelines:
 1. **Strict Decoupling**: Ingestion is completely decoupled from quiz generation. The quiz engine never parses, stores, or accesses PDF files at quiz runtime.
-2. **Review Gateway**: Extracted candidate questions are never auto-published or directly inserted as active questions. They remain as in-memory candidate representations until an administrator reviews, edits, and explicitly submits them.
-3. **Traceability**: Persisted questions created from ingestion batches retain a foreign key reference (`ingestion_batch_id`) pointing to their source `IngestionBatch`.
+2. **Primary Multimodal Document Understanding (Google Gemini)**: Uploaded PDFs are processed server-side using Google Gemini (`@google/genai`) for native multimodal layout, mathematical/chemical LaTeX notation, match-list structures, and answer-key separation.
+3. **Resilient Local Fallback**: If Gemini is unconfigured or encounters transient rate limits / API failures, the ingestion pipeline seamlessly falls back to the deterministic local PDF extraction engine.
+4. **Review Gateway**: Extracted candidate questions are never auto-published or directly inserted as active questions. They remain as in-memory candidate representations until an administrator reviews, edits, and explicitly submits them.
+5. **Traceability**: Persisted questions created from ingestion batches retain a foreign key reference (`ingestion_batch_id`) pointing to their source `IngestionBatch`.
 
 ---
 

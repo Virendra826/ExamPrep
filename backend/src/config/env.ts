@@ -18,6 +18,9 @@ const envSchema = z.object({
   STORAGE_DRIVER: z.enum(["local", "s3", "supabase"]).default("local"),
   VISION_PROVIDER: z.enum(["disabled", "anthropic", "openai"]).default("disabled"),
   VISION_API_KEY: z.string().optional(),
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
+  EXTRACTION_ENGINE: z.enum(["gemini", "hybrid", "local"]).default("hybrid"),
 });
 
 const parsed = envSchema.safeParse(process.env);
