@@ -21,6 +21,7 @@ import {
   Loader2,
   CheckCheck,
   ChevronDown,
+  Filter,
 } from "lucide-react";
 
 export const QuestionList: React.FC = () => {
@@ -379,7 +380,7 @@ export const QuestionList: React.FC = () => {
   const columns: Column<Question>[] = [
     {
       header: (
-        <div className="flex items-center">
+        <div className="flex items-center justify-center">
           <input
             type="checkbox"
             aria-label="Select all questions on this page"
@@ -389,10 +390,10 @@ export const QuestionList: React.FC = () => {
           />
         </div>
       ),
-      className: "w-10 px-4",
-      headerClassName: "w-10 px-4",
+      className: "w-12 px-3 text-center",
+      headerClassName: "w-12 px-3 text-center",
       render: (q) => (
-        <div className="flex items-center">
+        <div className="flex items-center justify-center">
           <input
             type="checkbox"
             aria-label={`Select question ${q.id}`}
@@ -543,7 +544,7 @@ export const QuestionList: React.FC = () => {
             setSelectedQuestionForEdit(null);
             setIsFormModalOpen(true);
           }}
-          className="flex items-center space-x-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-indigo-600/30 transition-all self-start sm:self-auto"
+          className="flex items-center space-x-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-indigo-600/30 transition-all self-start sm:self-auto cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>New Question</span>
@@ -551,24 +552,25 @@ export const QuestionList: React.FC = () => {
       </div>
 
       {/* Filter Toolbar */}
-      <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 backdrop-blur-sm space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
-          {/* Search Box */}
-          <div className="relative md:col-span-2">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+      <div className="bg-slate-900/80 border border-slate-800/90 rounded-2xl p-4.5 backdrop-blur-md space-y-3.5 shadow-xl overflow-hidden">
+        {/* Row 1: Search & Curriculum Hierarchy */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Search Box (Takes 2 cols on lg) */}
+          <div className="relative sm:col-span-2 lg:col-span-2 min-w-0">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Search questions..."
-              className="block w-full pl-9 pr-8 py-2 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
+              className="block w-full pl-9 pr-8 py-2 bg-slate-800/90 border border-slate-700/80 hover:border-slate-600 rounded-xl text-xs text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => handleSearchChange("")}
                 aria-label="Clear search"
-                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-white"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -576,12 +578,12 @@ export const QuestionList: React.FC = () => {
           </div>
 
           {/* Subject Filter */}
-          <div>
+          <div className="relative min-w-0">
             <select
               aria-label="Filter by subject"
               value={selectedSubjectId}
               onChange={(e) => handleSubjectFilterChange(e.target.value)}
-              className="block w-full px-3 py-2 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 transition-all"
+              className="w-full appearance-none pl-3 pr-8 py-2 bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 hover:border-slate-600 focus:border-indigo-500 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/30 transition-all cursor-pointer truncate"
             >
               <option value="">All Subjects</option>
               {subjects.map((sub) => (
@@ -590,16 +592,17 @@ export const QuestionList: React.FC = () => {
                 </option>
               ))}
             </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
           {/* Chapter Filter */}
-          <div>
+          <div className="relative min-w-0">
             <select
               aria-label="Filter by chapter"
               value={selectedChapterId}
               onChange={(e) => handleChapterFilterChange(e.target.value)}
               disabled={!selectedSubjectId}
-              className="block w-full px-3 py-2 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 transition-all disabled:opacity-50"
+              className="w-full appearance-none pl-3 pr-8 py-2 bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 hover:border-slate-600 focus:border-indigo-500 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer truncate"
             >
               <option value="">
                 {!selectedSubjectId ? "Select subject first" : "All Chapters"}
@@ -610,61 +613,158 @@ export const QuestionList: React.FC = () => {
                 </option>
               ))}
             </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
+        </div>
 
+        {/* Row 2: Facet Filters (Type, Difficulty, Status) */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* Type Filter */}
-          <div>
+          <div className="relative min-w-0">
             <select
               aria-label="Filter by question type"
               value={selectedType}
               onChange={(e) => handleTypeFilterChange(e.target.value as QuestionType | "")}
-              className="block w-full px-2.5 py-2 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 transition-all"
+              className="w-full appearance-none pl-3 pr-8 py-2 bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 hover:border-slate-600 focus:border-indigo-500 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/30 transition-all cursor-pointer truncate"
             >
               <option value="">All Types</option>
               <option value="CONCEPT">Concept</option>
               <option value="PYQ">PYQ</option>
             </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
-          {/* Difficulty & Status Filters */}
-          <div className="flex space-x-2">
+          {/* Difficulty Filter */}
+          <div className="relative min-w-0">
             <select
               aria-label="Filter by difficulty"
               value={selectedDifficulty}
               onChange={(e) => handleDifficultyFilterChange(e.target.value as Difficulty | "")}
-              className="flex-1 px-2 py-2 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 transition-all"
+              className="w-full appearance-none pl-3 pr-8 py-2 bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 hover:border-slate-600 focus:border-indigo-500 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/30 transition-all cursor-pointer truncate"
             >
               <option value="">All Difficulties</option>
               <option value="EASY">Easy</option>
               <option value="MEDIUM">Medium</option>
               <option value="HARD">Hard</option>
             </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
 
+          {/* Status Filter */}
+          <div className="relative min-w-0">
             <select
               aria-label="Filter by status"
               value={selectedStatus}
               onChange={(e) => handleStatusFilterChange(e.target.value as QuestionStatus | "")}
-              className="flex-1 px-2 py-2 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 transition-all"
+              className="w-full appearance-none pl-3 pr-8 py-2 bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 hover:border-slate-600 focus:border-indigo-500 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/30 transition-all cursor-pointer truncate"
             >
               <option value="">All Statuses</option>
               <option value="ACTIVE">Active</option>
               <option value="DRAFT">Draft</option>
               <option value="INACTIVE">Inactive</option>
             </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
         </div>
 
+        {/* Active Filters Summary & Reset */}
         {hasActiveFilters && (
-          <div className="flex items-center justify-between pt-2 border-t border-slate-800/60 text-xs">
-            <span className="text-slate-400">
-              Showing filtered results ({total} questions found)
-            </span>
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-slate-800/80 text-xs">
+            <div className="flex flex-wrap items-center gap-1.5 text-slate-400">
+              <span className="flex items-center space-x-1 mr-1 text-slate-400">
+                <Filter className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Active filters:</span>
+              </span>
+              {selectedSubjectId && (
+                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-indigo-950/60 border border-indigo-800/50 text-indigo-300 text-[11px]">
+                  <span>Subject: {getSubjectName(selectedSubjectId)}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleSubjectFilterChange("")}
+                    className="hover:text-white ml-1 cursor-pointer"
+                    aria-label="Remove subject filter"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {selectedChapterId && (
+                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-indigo-950/60 border border-indigo-800/50 text-indigo-300 text-[11px]">
+                  <span>Chapter: {getChapterName(selectedChapterId)}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleChapterFilterChange("")}
+                    className="hover:text-white ml-1 cursor-pointer"
+                    aria-label="Remove chapter filter"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {selectedType && (
+                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-indigo-950/60 border border-indigo-800/50 text-indigo-300 text-[11px]">
+                  <span>Type: {selectedType}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleTypeFilterChange("")}
+                    className="hover:text-white ml-1 cursor-pointer"
+                    aria-label="Remove type filter"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {selectedDifficulty && (
+                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-indigo-950/60 border border-indigo-800/50 text-indigo-300 text-[11px]">
+                  <span>Difficulty: {selectedDifficulty}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleDifficultyFilterChange("")}
+                    className="hover:text-white ml-1 cursor-pointer"
+                    aria-label="Remove difficulty filter"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {selectedStatus && (
+                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-indigo-950/60 border border-indigo-800/50 text-indigo-300 text-[11px]">
+                  <span>Status: {selectedStatus}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleStatusFilterChange("")}
+                    className="hover:text-white ml-1 cursor-pointer"
+                    aria-label="Remove status filter"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {searchQuery && (
+                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-indigo-950/60 border border-indigo-800/50 text-indigo-300 text-[11px]">
+                  <span>Search: "{searchQuery}"</span>
+                  <button
+                    type="button"
+                    onClick={() => handleSearchChange("")}
+                    className="hover:text-white ml-1 cursor-pointer"
+                    aria-label="Remove search query"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              <span className="text-slate-500 ml-1">
+                ({total} question{total === 1 ? "" : "s"} found)
+              </span>
+            </div>
+
             <button
               type="button"
               onClick={handleClearFilters}
-              className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
+              className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-indigo-950/40 border border-indigo-800/50 text-indigo-300 hover:text-white hover:bg-indigo-900/60 font-medium transition-all text-xs cursor-pointer ml-auto"
             >
-              Reset Filters
+              <X className="w-3 h-3" />
+              <span>Reset Filters</span>
             </button>
           </div>
         )}
@@ -672,7 +772,7 @@ export const QuestionList: React.FC = () => {
 
       {/* Floating / Sticky Bulk Actions Bar */}
       {selectedCount > 0 && (
-        <div className="bg-gradient-to-r from-indigo-950/90 via-slate-900/90 to-purple-950/90 border border-indigo-500/40 rounded-2xl p-4 shadow-2xl backdrop-blur-md flex flex-wrap items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="bg-gradient-to-r from-indigo-950/95 via-slate-900/95 to-purple-950/95 border border-indigo-500/40 rounded-2xl p-4 shadow-2xl backdrop-blur-md flex flex-wrap items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="flex items-center space-x-3">
             <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
               <CheckCheck className="w-3.5 h-3.5 mr-1 text-indigo-400" />
@@ -724,7 +824,7 @@ export const QuestionList: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleBulkUpdate({ difficulty: "EASY" })}
-                    className="w-full text-left px-3 py-1.5 text-xs text-emerald-300 hover:bg-emerald-950/40 flex items-center space-x-2 transition-colors"
+                    className="w-full text-left px-3 py-1.5 text-xs text-emerald-300 hover:bg-emerald-950/40 flex items-center space-x-2 transition-colors cursor-pointer"
                   >
                     <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
                     <span>Easy</span>
@@ -732,7 +832,7 @@ export const QuestionList: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleBulkUpdate({ difficulty: "MEDIUM" })}
-                    className="w-full text-left px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-950/40 flex items-center space-x-2 transition-colors"
+                    className="w-full text-left px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-950/40 flex items-center space-x-2 transition-colors cursor-pointer"
                   >
                     <span className="w-2 h-2 rounded-full bg-amber-400"></span>
                     <span>Medium / Moderate</span>
@@ -740,7 +840,7 @@ export const QuestionList: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleBulkUpdate({ difficulty: "HARD" })}
-                    className="w-full text-left px-3 py-1.5 text-xs text-rose-300 hover:bg-rose-950/40 flex items-center space-x-2 transition-colors"
+                    className="w-full text-left px-3 py-1.5 text-xs text-rose-300 hover:bg-rose-950/40 flex items-center space-x-2 transition-colors cursor-pointer"
                   >
                     <span className="w-2 h-2 rounded-full bg-rose-400"></span>
                     <span>Hard / Difficult</span>
@@ -772,7 +872,7 @@ export const QuestionList: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleBulkUpdate({ status: "ACTIVE" })}
-                    className="w-full text-left px-3 py-1.5 text-xs text-emerald-300 hover:bg-emerald-950/40 flex items-center space-x-2 transition-colors"
+                    className="w-full text-left px-3 py-1.5 text-xs text-emerald-300 hover:bg-emerald-950/40 flex items-center space-x-2 transition-colors cursor-pointer"
                   >
                     <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
                     <span>Active</span>
@@ -780,7 +880,7 @@ export const QuestionList: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleBulkUpdate({ status: "DRAFT" })}
-                    className="w-full text-left px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-950/40 flex items-center space-x-2 transition-colors"
+                    className="w-full text-left px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-950/40 flex items-center space-x-2 transition-colors cursor-pointer"
                   >
                     <span className="w-2 h-2 rounded-full bg-amber-400"></span>
                     <span>Draft</span>
@@ -788,7 +888,7 @@ export const QuestionList: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleBulkUpdate({ status: "INACTIVE" })}
-                    className="w-full text-left px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-800 flex items-center space-x-2 transition-colors"
+                    className="w-full text-left px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-800 flex items-center space-x-2 transition-colors cursor-pointer"
                   >
                     <span className="w-2 h-2 rounded-full bg-slate-400"></span>
                     <span>Inactive</span>
@@ -801,7 +901,7 @@ export const QuestionList: React.FC = () => {
             <button
               type="button"
               onClick={handleClearSelection}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
               title="Clear selection"
               aria-label="Clear selection"
             >
@@ -823,7 +923,7 @@ export const QuestionList: React.FC = () => {
             <button
               type="button"
               onClick={handleClearSelection}
-              className="text-indigo-400 hover:text-indigo-300 font-semibold transition-colors"
+              className="text-indigo-400 hover:text-indigo-300 font-semibold transition-colors cursor-pointer"
             >
               Clear selection
             </button>
@@ -831,7 +931,7 @@ export const QuestionList: React.FC = () => {
             <button
               type="button"
               onClick={handleSelectAllMatchingAcrossFilters}
-              className="text-indigo-400 hover:text-indigo-300 font-semibold underline transition-colors"
+              className="text-indigo-400 hover:text-indigo-300 font-semibold underline transition-colors cursor-pointer"
             >
               Select all {total} questions matching filters
             </button>
@@ -843,7 +943,7 @@ export const QuestionList: React.FC = () => {
       {successMessage && (
         <div
           role="status"
-          className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-800/60 text-emerald-300 text-xs flex items-center justify-between space-x-2"
+          className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-800/60 text-emerald-300 text-xs flex items-center justify-between space-x-2 shadow-lg animate-in fade-in duration-200"
         >
           <div className="flex items-center space-x-2">
             <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-400" />
@@ -852,7 +952,7 @@ export const QuestionList: React.FC = () => {
           <button
             type="button"
             onClick={() => setSuccessMessage(null)}
-            className="text-emerald-400 hover:text-emerald-200"
+            className="text-emerald-400 hover:text-emerald-200 cursor-pointer"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -863,7 +963,7 @@ export const QuestionList: React.FC = () => {
       {error && (
         <div
           role="alert"
-          className="p-4 rounded-xl bg-rose-950/40 border border-rose-800/60 text-rose-300 text-xs flex items-center space-x-2"
+          className="p-4 rounded-xl bg-rose-950/40 border border-rose-800/60 text-rose-300 text-xs flex items-center space-x-2 shadow-lg animate-in fade-in duration-200"
         >
           <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
           <span>{error}</span>
@@ -914,4 +1014,3 @@ export const QuestionList: React.FC = () => {
     </div>
   );
 };
-
