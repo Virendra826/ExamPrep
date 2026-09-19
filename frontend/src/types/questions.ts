@@ -70,8 +70,25 @@ export interface QuestionFilterParams {
   subject_id?: string;
   chapter_id?: string;
   question_type?: QuestionType;
+  difficulty?: Difficulty;
   status?: QuestionStatus;
   search?: string;
+}
+
+export interface BulkUpdateQuestionsInput {
+  ids?: string[];
+  filter?: {
+    subject_id?: string;
+    chapter_id?: string;
+    question_type?: QuestionType;
+    difficulty?: Difficulty;
+    status?: QuestionStatus;
+    search?: string;
+  };
+  updates: {
+    status?: QuestionStatus;
+    difficulty?: Difficulty | null;
+  };
 }
 
 export interface AvailableCountParams {
@@ -79,3 +96,4 @@ export interface AvailableCountParams {
   chapterId?: string;
   type?: "CONCEPT" | "PYQ" | "BOTH";
 }
+

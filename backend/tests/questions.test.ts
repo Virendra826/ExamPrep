@@ -153,4 +153,116 @@ describe('Question Management (Backend)', () => {
     expect(res.body).toHaveProperty('count');
     expect(typeof res.body.count).toBe('number');
   });
+
+  it('should bulk update questions by ID (activate and set difficulty)', async () => {
+    // Create 2 draft questions
+    const q1 = await prisma.question.create({
+      data: {
+        question_text: 'Bulk test Q1',
+        options: [{ text: 'A' }, { text: 'B' }] as any,
+        correct_answer: 'A',
+        subject_id: testSubjectId,
+        chapter_id: testChapterId,
+        question_type: 'CONCEPT',
+        status: 'DRAFT',
+        difficulty: 'EASY',
+        source: 'MANUAL',
+        created_by: (await prisma.user.findFirst({ where: { role: 'ADMIN' } }))!.id,
+      },
+    });
+    const q2 = await prisma.question.create({
+      data: {
+        question_text: 'Bulk test Q2',
+        options: [{ text: '1' }, { text: '2' }] as any,
+        correct_answer: '1',
+        subject_id: testSubjectId,
+        chapter_id: testChapterId,
+        question_type: 'CONCEPT',
+        status: 'DRAFT',
+        difficulty: 'EASY',
+        source: 'MANUAL',
+        created_by: (await prisma.user.findFirst({ where: { role: 'ADMIN' } }))!.id,
+      },
+    });
+
+    try {
+      // 1. Bulk activate both
+      const activateRes = await request(app)
+        .patch('/api/v1/questions/bulk')
+        .set('Cookie', adminCookies)
+        .send({
+          ids: [q1.id, q2.id],
+          updates: { status: 'ACTIVE' },
+        });
+
+      expect(activateRes.status).toBe(200);
+      expect(activateRes.body.count).toBe(2);
+
+      const check1 = await prisma.question.findMany({
+        where: { id: { in: [q1.id, q2.id] } },
+      });
+      expect(check1.every((q) => q.status === 'ACTIVE')).toBe(true);
+
+      // 2. Bulk set difficulty to HARD
+      const diffRes = await request(app)
+        .patch('/api/v1/questions/bulk')
+        .set('Cookie', adminCookies)
+        .send({
+          ids: [q1.id, q2.id],
+          updates: { difficulty: 'HARD' },
+        });
+
+      expect(diffRes.status).toBe(200);
+      expect(diffRes.body.count).toBe(2);
+
+      const check2 = await prisma.question.findMany({
+        where: { id: { in: [q1.id, q2.id] } },
+      });
+      expect(check2.every((q) => q.difficulty === 'HARD')).toBe(true);
+
+      // 3. Bulk update using filter criteria
+      const filterRes = await request(app)
+        .patch('/api/v1/questions/bulk')
+        .set('Cookie', adminCookies)
+        .send({
+          filter: { search: 'Bulk test Q' },
+          updates: { difficulty: 'MEDIUM' },
+        });
+
+      expect(filterRes.status).toBe(200);
+      expect(filterRes.body.count).toBeGreaterThanOrEqual(2);
+
+      const check3 = await prisma.question.findMany({
+        where: { id: { in: [q1.id, q2.id] } },
+      });
+      expect(check3.every((q) => q.difficulty === 'MEDIUM')).toBe(true);
+    } finally {
+      await prisma.question.deleteMany({
+        where: { id: { in: [q1.id, q2.id] } },
+      });
+    }
+  });
+
+  it('should reject bulk update without updates payload (422)', async () => {
+    const res = await request(app)
+      .patch('/api/v1/questions/bulk')
+      .set('Cookie', adminCookies)
+      .send({
+        ids: ['00000000-0000-0000-0000-000000000001'],
+        updates: {},
+      });
+    expect(res.status).toBe(422);
+  });
+
+  it('should forbid student from performing bulk updates (403)', async () => {
+    const res = await request(app)
+      .patch('/api/v1/questions/bulk')
+      .set('Cookie', studentCookies)
+      .send({
+        ids: ['00000000-0000-0000-0000-000000000001'],
+        updates: { status: 'ACTIVE' },
+      });
+    expect(res.status).toBe(403);
+  });
 });
+

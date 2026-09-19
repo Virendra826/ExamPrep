@@ -2,7 +2,13 @@ import { type Request, type Response, type NextFunction } from 'express';
 import { ZodError } from 'zod';
 import { questionService } from './question.service.js';
 import { UnprocessableEntityError } from '../../utils/errors.js';
-import { createQuestionSchema, updateQuestionSchema, questionQuerySchema, availableCountQuerySchema } from './question.validator.js';
+import {
+  createQuestionSchema,
+  updateQuestionSchema,
+  bulkUpdateQuestionsSchema,
+  questionQuerySchema,
+  availableCountQuerySchema,
+} from './question.validator.js';
 
 export class QuestionController {
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -26,6 +32,20 @@ export class QuestionController {
       const adminId = req.user!.id;
       const question = await questionService.updateQuestion(id, data, adminId);
       res.status(200).json({ question });
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return next(new UnprocessableEntityError(err.issues[0]?.message || 'Validation failed', err.issues));
+      }
+      next(err);
+    }
+  }
+
+  async bulkUpdate(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = bulkUpdateQuestionsSchema.parse(req.body);
+      const adminId = req.user!.id;
+      const result = await questionService.bulkUpdateQuestions(data, adminId);
+      res.status(200).json(result);
     } catch (err) {
       if (err instanceof ZodError) {
         return next(new UnprocessableEntityError(err.issues[0]?.message || 'Validation failed', err.issues));
@@ -77,3 +97,4 @@ export class QuestionController {
 }
 
 export const questionController = new QuestionController();
+

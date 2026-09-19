@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Inbox, Loader2 } from "lucide-react";
 
 export interface Column<T> {
-  header: string;
+  header: ReactNode;
   accessor?: keyof T;
   render?: (item: T) => ReactNode;
   className?: string;

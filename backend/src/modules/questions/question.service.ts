@@ -2,11 +2,16 @@ import { prisma } from '../../config/prisma.js';
 import { UnprocessableEntityError, NotFoundError } from '../../utils/errors.js';
 import { parsePagination, formatPaginatedResponse } from '../../utils/pagination.js';
 import { QuestionStatus, QuestionType } from '@prisma/client';
-import { CreateQuestionInput, UpdateQuestionInput, QuestionQuery, AvailableCountQuery } from './question.validator.js';
+import {
+  CreateQuestionInput,
+  UpdateQuestionInput,
+  QuestionQuery,
+  BulkUpdateQuestionsInput,
+  AvailableCountQuery,
+} from './question.validator.js';
 
 export class QuestionService {
   // Verify that the chapter belongs to the given subject
-// Verify that the chapter exists (skip subject consistency check)
   private async verifyChapterSubject(chapterId: string, subjectId: string) {
     const chapter = await prisma.chapter.findUnique({
       where: { id: chapterId },
@@ -83,6 +88,38 @@ export class QuestionService {
     return deactivated;
   }
 
+  async bulkUpdateQuestions(data: BulkUpdateQuestionsInput, _adminUserId: string) {
+    const where: any = {};
+
+    if (data.ids && data.ids.length > 0) {
+      where.id = { in: data.ids };
+    } else if (data.filter) {
+      if (data.filter.subject_id) where.subject_id = data.filter.subject_id;
+      if (data.filter.chapter_id) where.chapter_id = data.filter.chapter_id;
+      if (data.filter.question_type) where.question_type = data.filter.question_type;
+      if (data.filter.difficulty) where.difficulty = data.filter.difficulty;
+      if (data.filter.status) where.status = data.filter.status;
+      if (data.filter.search) {
+        where.question_text = { contains: data.filter.search, mode: 'insensitive' };
+      }
+    }
+
+    const updateData: any = {};
+    if (data.updates.status !== undefined) {
+      updateData.status = data.updates.status;
+    }
+    if (data.updates.difficulty !== undefined) {
+      updateData.difficulty = data.updates.difficulty;
+    }
+
+    const result = await prisma.question.updateMany({
+      where,
+      data: updateData,
+    });
+
+    return { count: result.count };
+  }
+
   async getQuestionById(id: string) {
     const question = await prisma.question.findUnique({ where: { id } });
     if (!question) {
@@ -97,6 +134,7 @@ export class QuestionService {
     if (query.subject_id) where.subject_id = query.subject_id;
     if (query.chapter_id) where.chapter_id = query.chapter_id;
     if (query.question_type) where.question_type = query.question_type;
+    if (query.difficulty) where.difficulty = query.difficulty;
     if (query.status) where.status = query.status;
     if (query.search) {
       where.question_text = { contains: query.search, mode: 'insensitive' };
@@ -120,3 +158,4 @@ export class QuestionService {
 }
 
 export const questionService = new QuestionService();
+

@@ -15,6 +15,7 @@ vi.mock("../api/questions.api", () => ({
     getQuestion: vi.fn(),
     createQuestion: vi.fn(),
     updateQuestion: vi.fn(),
+    bulkUpdateQuestions: vi.fn(),
     deactivateQuestion: vi.fn(),
     getAvailableCount: vi.fn(),
   },
@@ -407,4 +408,106 @@ describe("Admin Question Management UI (PROMPT 13)", () => {
       expect(questionsApi.getQuestions).toHaveBeenCalledTimes(2); // Initial + reload
     });
   });
+
+  it("supports selecting questions and performing bulk activation", async () => {
+    vi.mocked(questionsApi.bulkUpdateQuestions).mockResolvedValue({ count: 2 });
+
+    render(
+      <MemoryRouter>
+        <QuestionList />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Select all questions on this page")).toBeInTheDocument();
+    });
+
+    // Select all questions on current page
+    const selectAllCheckbox = screen.getByLabelText("Select all questions on this page");
+    fireEvent.click(selectAllCheckbox);
+
+    // Bulk actions bar should appear
+    await waitFor(() => {
+      expect(screen.getByText(/2 Selected/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Make Active/i })).toBeInTheDocument();
+    });
+
+    // Click Make Active
+    const makeActiveBtn = screen.getByRole("button", { name: /Make Active/i });
+    fireEvent.click(makeActiveBtn);
+
+    await waitFor(() => {
+      expect(questionsApi.bulkUpdateQuestions).toHaveBeenCalledWith({
+        ids: expect.arrayContaining(["q-1", "q-2"]),
+        updates: { status: "ACTIVE" },
+      });
+      expect(screen.getByText(/Successfully updated 2 questions/i)).toBeInTheDocument();
+    });
+  });
+
+  it("supports setting difficulty in bulk for selected questions", async () => {
+    vi.mocked(questionsApi.bulkUpdateQuestions).mockResolvedValue({ count: 1 });
+
+    render(
+      <MemoryRouter>
+        <QuestionList />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(`Select question ${mockQuestions[0].id}`)).toBeInTheDocument();
+    });
+
+    // Select individual question
+    const q1Checkbox = screen.getByLabelText(`Select question ${mockQuestions[0].id}`);
+    fireEvent.click(q1Checkbox);
+
+    // Bulk bar appears
+    await waitFor(() => {
+      expect(screen.getByText(/1 Selected/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Set Difficulty/i })).toBeInTheDocument();
+    });
+
+    // Open difficulty menu
+    const setDiffBtn = screen.getByRole("button", { name: /Set Difficulty/i });
+    fireEvent.click(setDiffBtn);
+
+    // Select Hard / Difficult option
+    await waitFor(() => {
+      expect(screen.getByText(/Hard \/ Difficult/i)).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText(/Hard \/ Difficult/i));
+
+    await waitFor(() => {
+      expect(questionsApi.bulkUpdateQuestions).toHaveBeenCalledWith({
+        ids: [mockQuestions[0].id],
+        updates: { difficulty: "HARD" },
+      });
+      expect(screen.getByText(/Successfully updated 1 question/i)).toBeInTheDocument();
+    });
+  });
+
+  it("filters questions by difficulty", async () => {
+    render(
+      <MemoryRouter>
+        <QuestionList />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Filter by difficulty/i)).toBeInTheDocument();
+    });
+
+    const diffSelect = screen.getByLabelText(/Filter by difficulty/i);
+    fireEvent.change(diffSelect, { target: { value: "HARD" } });
+
+    await waitFor(() => {
+      expect(questionsApi.getQuestions).toHaveBeenCalledWith(
+        expect.objectContaining({
+          difficulty: "HARD",
+        })
+      );
+    });
+  });
 });
+

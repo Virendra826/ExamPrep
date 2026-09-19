@@ -36,6 +36,13 @@ export const questionsApi = {
     });
   },
 
+  bulkUpdateQuestions(data: import("../types/questions").BulkUpdateQuestionsInput): Promise<{ count: number }> {
+    return apiClient<{ count: number }>("/questions/bulk", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+
   deactivateQuestion(id: string): Promise<{ question: Question }> {
     return apiClient<{ question: Question }>(`/questions/${id}/deactivate`, {
       method: "PATCH",

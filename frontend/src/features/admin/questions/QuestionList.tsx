@@ -6,7 +6,7 @@ import { DataTable, type Column } from "../../../components/common/DataTable";
 import { Badge } from "../../../components/common/Badge";
 import { ConfirmDialog } from "../../../components/common/ConfirmDialog";
 import { QuestionFormModal } from "./QuestionFormModal";
-import type { Question, QuestionType, QuestionStatus } from "../../../types/questions";
+import type { Question, QuestionType, QuestionStatus, Difficulty, BulkUpdateQuestionsInput } from "../../../types/questions";
 import type { Subject, Chapter } from "../../../types/curriculum";
 import {
   Plus,
@@ -15,8 +15,12 @@ import {
   Search,
   X,
   AlertCircle,
+  CheckCircle2,
   GraduationCap,
   Sparkles,
+  Loader2,
+  CheckCheck,
+  ChevronDown,
 } from "lucide-react";
 
 export const QuestionList: React.FC = () => {
@@ -24,6 +28,7 @@ export const QuestionList: React.FC = () => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -34,6 +39,7 @@ export const QuestionList: React.FC = () => {
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>("");
   const [selectedChapterId, setSelectedChapterId] = useState<string>("");
   const [selectedType, setSelectedType] = useState<QuestionType | "">("");
+  const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty | "">("");
   const [selectedStatus, setSelectedStatus] = useState<QuestionStatus | "">("");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
@@ -41,11 +47,25 @@ export const QuestionList: React.FC = () => {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [chapters, setChapters] = useState<Chapter[]>([]);
 
+  // Selection & Bulk Actions state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectAllMatching, setSelectAllMatching] = useState(false);
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [isDifficultyMenuOpen, setIsDifficultyMenuOpen] = useState(false);
+  const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
+
   // Modals state
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [selectedQuestionForEdit, setSelectedQuestionForEdit] = useState<Question | null>(null);
   const [questionToDeactivate, setQuestionToDeactivate] = useState<Question | null>(null);
   const [isDeactivating, setIsDeactivating] = useState(false);
+
+  // Auto-dismiss success message
+  useEffect(() => {
+    if (!successMessage) return;
+    const timer = setTimeout(() => setSuccessMessage(null), 4000);
+    return () => clearTimeout(timer);
+  }, [successMessage]);
 
   // Load subjects for filter dropdown
   useEffect(() => {
@@ -98,6 +118,7 @@ export const QuestionList: React.FC = () => {
         subject_id: selectedSubjectId || undefined,
         chapter_id: selectedChapterId || undefined,
         question_type: selectedType || undefined,
+        difficulty: selectedDifficulty || undefined,
         status: selectedStatus || undefined,
         search: searchQuery.trim() || undefined,
       });
@@ -109,7 +130,7 @@ export const QuestionList: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [page, selectedSubjectId, selectedChapterId, selectedType, selectedStatus, searchQuery]);
+  }, [page, selectedSubjectId, selectedChapterId, selectedType, selectedDifficulty, selectedStatus, searchQuery]);
 
   useEffect(() => {
     void fetchQuestions();
@@ -122,26 +143,43 @@ export const QuestionList: React.FC = () => {
     if (!subId) {
       setChapters([]);
     }
+    setSelectedIds(new Set());
+    setSelectAllMatching(false);
     setPage(1);
   };
 
   const handleChapterFilterChange = (chapId: string) => {
     setSelectedChapterId(chapId);
+    setSelectedIds(new Set());
+    setSelectAllMatching(false);
     setPage(1);
   };
 
   const handleTypeFilterChange = (type: QuestionType | "") => {
     setSelectedType(type);
+    setSelectedIds(new Set());
+    setSelectAllMatching(false);
+    setPage(1);
+  };
+
+  const handleDifficultyFilterChange = (diff: Difficulty | "") => {
+    setSelectedDifficulty(diff);
+    setSelectedIds(new Set());
+    setSelectAllMatching(false);
     setPage(1);
   };
 
   const handleStatusFilterChange = (status: QuestionStatus | "") => {
     setSelectedStatus(status);
+    setSelectedIds(new Set());
+    setSelectAllMatching(false);
     setPage(1);
   };
 
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
+    setSelectedIds(new Set());
+    setSelectAllMatching(false);
     setPage(1);
   };
 
@@ -149,10 +187,98 @@ export const QuestionList: React.FC = () => {
     setSelectedSubjectId("");
     setSelectedChapterId("");
     setSelectedType("");
+    setSelectedDifficulty("");
     setSelectedStatus("");
     setSearchQuery("");
     setChapters([]);
+    setSelectedIds(new Set());
+    setSelectAllMatching(false);
     setPage(1);
+  };
+
+  // Selection handlers
+  const allOnPageSelected = questions.length > 0 && questions.every((q) => selectedIds.has(q.id));
+
+  const handleToggleSelectRow = (id: string) => {
+    if (selectAllMatching) {
+      const newSet = new Set(questions.map((q) => q.id));
+      newSet.delete(id);
+      setSelectedIds(newSet);
+      setSelectAllMatching(false);
+      return;
+    }
+
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleSelectAllOnPage = () => {
+    if (selectAllMatching || allOnPageSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        questions.forEach((q) => next.delete(q.id));
+        return next;
+      });
+      setSelectAllMatching(false);
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        questions.forEach((q) => next.add(q.id));
+        return next;
+      });
+    }
+  };
+
+  const handleSelectAllMatchingAcrossFilters = () => {
+    setSelectAllMatching(true);
+  };
+
+  const handleClearSelection = () => {
+    setSelectedIds(new Set());
+    setSelectAllMatching(false);
+  };
+
+  // Bulk update handler
+  const handleBulkUpdate = async (updates: { status?: QuestionStatus; difficulty?: Difficulty | null }) => {
+    setIsBulkUpdating(true);
+    setError(null);
+    setIsDifficultyMenuOpen(false);
+    setIsStatusMenuOpen(false);
+    try {
+      const payload: BulkUpdateQuestionsInput = {
+        updates,
+      };
+
+      if (selectAllMatching) {
+        payload.filter = {
+          subject_id: selectedSubjectId || undefined,
+          chapter_id: selectedChapterId || undefined,
+          question_type: selectedType || undefined,
+          difficulty: selectedDifficulty || undefined,
+          status: selectedStatus || undefined,
+          search: searchQuery.trim() || undefined,
+        };
+      } else {
+        payload.ids = Array.from(selectedIds);
+      }
+
+      const res = await questionsApi.bulkUpdateQuestions(payload);
+      setSuccessMessage(`Successfully updated ${res.count} question${res.count === 1 ? "" : "s"}.`);
+      setSelectedIds(new Set());
+      setSelectAllMatching(false);
+      await fetchQuestions();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to perform bulk update");
+    } finally {
+      setIsBulkUpdating(false);
+    }
   };
 
   // Create / Update Question handler
@@ -206,6 +332,36 @@ export const QuestionList: React.FC = () => {
     }
   };
 
+  // Difficulty badge renderer
+  const renderDifficultyBadge = (difficulty: Difficulty | null) => {
+    switch (difficulty) {
+      case "EASY":
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-950/60 text-emerald-300 border border-emerald-800/50">
+            Easy
+          </span>
+        );
+      case "MEDIUM":
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-950/60 text-amber-300 border border-amber-800/50">
+            Medium
+          </span>
+        );
+      case "HARD":
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-950/60 text-rose-300 border border-rose-800/50">
+            Hard
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] text-slate-500 bg-slate-800/40 border border-slate-700/40">
+            —
+          </span>
+        );
+    }
+  };
+
   // Subject and chapter helper lookup
   const getSubjectName = (subId: string) => {
     const s = subjects.find((sub) => sub.id === subId);
@@ -217,8 +373,36 @@ export const QuestionList: React.FC = () => {
     return c ? c.name : "Chapter";
   };
 
+  const selectedCount = selectAllMatching ? total : selectedIds.size;
+
   // Table columns definition
   const columns: Column<Question>[] = [
+    {
+      header: (
+        <div className="flex items-center">
+          <input
+            type="checkbox"
+            aria-label="Select all questions on this page"
+            checked={selectAllMatching || allOnPageSelected}
+            onChange={handleToggleSelectAllOnPage}
+            className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500/30 focus:ring-offset-0 transition-colors cursor-pointer"
+          />
+        </div>
+      ),
+      className: "w-10 px-4",
+      headerClassName: "w-10 px-4",
+      render: (q) => (
+        <div className="flex items-center">
+          <input
+            type="checkbox"
+            aria-label={`Select question ${q.id}`}
+            checked={selectAllMatching || selectedIds.has(q.id)}
+            onChange={() => handleToggleSelectRow(q.id)}
+            className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500/30 focus:ring-offset-0 transition-colors cursor-pointer"
+          />
+        </div>
+      ),
+    },
     {
       header: "Question Text",
       accessor: "question_text",
@@ -295,6 +479,11 @@ export const QuestionList: React.FC = () => {
       ),
     },
     {
+      header: "Difficulty",
+      accessor: "difficulty",
+      render: (q) => renderDifficultyBadge(q.difficulty),
+    },
+    {
       header: "Status",
       accessor: "status",
       render: (q) => renderStatusBadge(q.status),
@@ -334,7 +523,7 @@ export const QuestionList: React.FC = () => {
   ];
 
   const hasActiveFilters = Boolean(
-    selectedSubjectId || selectedChapterId || selectedType || selectedStatus || searchQuery
+    selectedSubjectId || selectedChapterId || selectedType || selectedDifficulty || selectedStatus || searchQuery
   );
 
   return (
@@ -363,7 +552,7 @@ export const QuestionList: React.FC = () => {
 
       {/* Filter Toolbar */}
       <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 backdrop-blur-sm space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
           {/* Search Box */}
           <div className="relative md:col-span-2">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -423,24 +612,39 @@ export const QuestionList: React.FC = () => {
             </select>
           </div>
 
-          {/* Type & Status Filters */}
-          <div className="flex space-x-2">
+          {/* Type Filter */}
+          <div>
             <select
               aria-label="Filter by question type"
               value={selectedType}
               onChange={(e) => handleTypeFilterChange(e.target.value as QuestionType | "")}
-              className="flex-1 px-2.5 py-2 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 transition-all"
+              className="block w-full px-2.5 py-2 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 transition-all"
             >
               <option value="">All Types</option>
               <option value="CONCEPT">Concept</option>
               <option value="PYQ">PYQ</option>
+            </select>
+          </div>
+
+          {/* Difficulty & Status Filters */}
+          <div className="flex space-x-2">
+            <select
+              aria-label="Filter by difficulty"
+              value={selectedDifficulty}
+              onChange={(e) => handleDifficultyFilterChange(e.target.value as Difficulty | "")}
+              className="flex-1 px-2 py-2 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 transition-all"
+            >
+              <option value="">All Difficulties</option>
+              <option value="EASY">Easy</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="HARD">Hard</option>
             </select>
 
             <select
               aria-label="Filter by status"
               value={selectedStatus}
               onChange={(e) => handleStatusFilterChange(e.target.value as QuestionStatus | "")}
-              className="flex-1 px-2.5 py-2 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 transition-all"
+              className="flex-1 px-2 py-2 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 transition-all"
             >
               <option value="">All Statuses</option>
               <option value="ACTIVE">Active</option>
@@ -466,6 +670,195 @@ export const QuestionList: React.FC = () => {
         )}
       </div>
 
+      {/* Floating / Sticky Bulk Actions Bar */}
+      {selectedCount > 0 && (
+        <div className="bg-gradient-to-r from-indigo-950/90 via-slate-900/90 to-purple-950/90 border border-indigo-500/40 rounded-2xl p-4 shadow-2xl backdrop-blur-md flex flex-wrap items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center space-x-3">
+            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              <CheckCheck className="w-3.5 h-3.5 mr-1 text-indigo-400" />
+              {selectedCount} Selected
+            </span>
+            <span className="text-xs text-slate-300 font-medium hidden sm:inline">
+              {selectAllMatching
+                ? `All ${total} questions matching filters selected`
+                : `${selectedIds.size} question${selectedIds.size === 1 ? "" : "s"} selected`}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Make Active Button */}
+            <button
+              type="button"
+              disabled={isBulkUpdating}
+              onClick={() => handleBulkUpdate({ status: "ACTIVE" })}
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold rounded-xl shadow-md shadow-emerald-600/30 transition-all cursor-pointer"
+            >
+              {isBulkUpdating ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <CheckCircle2 className="w-3.5 h-3.5" />
+              )}
+              <span>Make Active</span>
+            </button>
+
+            {/* Set Difficulty Dropdown Menu */}
+            <div className="relative">
+              <button
+                type="button"
+                disabled={isBulkUpdating}
+                onClick={() => {
+                  setIsDifficultyMenuOpen((prev) => !prev);
+                  setIsStatusMenuOpen(false);
+                }}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+              >
+                <span>Set Difficulty</span>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              </button>
+
+              {isDifficultyMenuOpen && (
+                <div className="absolute left-0 sm:right-0 sm:left-auto mt-1 w-44 bg-slate-900 border border-slate-800 rounded-xl shadow-xl z-20 py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-3 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Assign Difficulty
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleBulkUpdate({ difficulty: "EASY" })}
+                    className="w-full text-left px-3 py-1.5 text-xs text-emerald-300 hover:bg-emerald-950/40 flex items-center space-x-2 transition-colors"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span>Easy</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleBulkUpdate({ difficulty: "MEDIUM" })}
+                    className="w-full text-left px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-950/40 flex items-center space-x-2 transition-colors"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                    <span>Medium / Moderate</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleBulkUpdate({ difficulty: "HARD" })}
+                    className="w-full text-left px-3 py-1.5 text-xs text-rose-300 hover:bg-rose-950/40 flex items-center space-x-2 transition-colors"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-rose-400"></span>
+                    <span>Hard / Difficult</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Set Status Dropdown Menu */}
+            <div className="relative">
+              <button
+                type="button"
+                disabled={isBulkUpdating}
+                onClick={() => {
+                  setIsStatusMenuOpen((prev) => !prev);
+                  setIsDifficultyMenuOpen(false);
+                }}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+              >
+                <span>Set Status</span>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              </button>
+
+              {isStatusMenuOpen && (
+                <div className="absolute left-0 sm:right-0 sm:left-auto mt-1 w-40 bg-slate-900 border border-slate-800 rounded-xl shadow-xl z-20 py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-3 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Change Status
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleBulkUpdate({ status: "ACTIVE" })}
+                    className="w-full text-left px-3 py-1.5 text-xs text-emerald-300 hover:bg-emerald-950/40 flex items-center space-x-2 transition-colors"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span>Active</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleBulkUpdate({ status: "DRAFT" })}
+                    className="w-full text-left px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-950/40 flex items-center space-x-2 transition-colors"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                    <span>Draft</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleBulkUpdate({ status: "INACTIVE" })}
+                    className="w-full text-left px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-800 flex items-center space-x-2 transition-colors"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                    <span>Inactive</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Clear Selection */}
+            <button
+              type="button"
+              onClick={handleClearSelection}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              title="Clear selection"
+              aria-label="Clear selection"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Select All Matching Notice */}
+      {allOnPageSelected && total > questions.length && (
+        <div className="bg-slate-900/80 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-300 flex items-center justify-between">
+          <span>
+            {selectAllMatching
+              ? `All ${total} questions matching filters are selected.`
+              : `All ${questions.length} questions on this page are selected.`}
+          </span>
+          {selectAllMatching ? (
+            <button
+              type="button"
+              onClick={handleClearSelection}
+              className="text-indigo-400 hover:text-indigo-300 font-semibold transition-colors"
+            >
+              Clear selection
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSelectAllMatchingAcrossFilters}
+              className="text-indigo-400 hover:text-indigo-300 font-semibold underline transition-colors"
+            >
+              Select all {total} questions matching filters
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Success Notification */}
+      {successMessage && (
+        <div
+          role="status"
+          className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-800/60 text-emerald-300 text-xs flex items-center justify-between space-x-2"
+        >
+          <div className="flex items-center space-x-2">
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-400" />
+            <span>{successMessage}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSuccessMessage(null)}
+            className="text-emerald-400 hover:text-emerald-200"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Error Alert */}
       {error && (
         <div
@@ -488,7 +881,9 @@ export const QuestionList: React.FC = () => {
           page,
           totalPages,
           total,
-          onPageChange: (newPage) => setPage(newPage),
+          onPageChange: (newPage) => {
+            setPage(newPage);
+          },
         }}
       />
 
@@ -519,3 +914,4 @@ export const QuestionList: React.FC = () => {
     </div>
   );
 };
+
