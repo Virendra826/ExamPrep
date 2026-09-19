@@ -155,6 +155,7 @@ export interface ParsedOption {
   label: string;
   letter: string;
   index: number;
+  startIndex?: number;
 }
 
 /**
@@ -166,13 +167,20 @@ export interface ParsedOption {
 export function parseOptions(rawText: string): ParsedOption[] {
   if (!rawText) return [];
 
-  // Match all potential option markers: (1)..(5), (A)..(E), (a)..(e), A...E., A...E), 1...5.
-  const markerRegex = /(?:^|[\n\r\t]|\s{2,}|\s(?=\([1-5A-Ea-e]\)|[A-Ea-e][\.\)][ \t]))(?:\(([1-5]|[A-Ea-e])\)|([A-Ea-e])[\.\)])[ \t]*/g;
+  // Temporarily mask phrases like "marked as (1) to (4)", "from (1) to (4)" inside question stem
+  const sanitizedText = rawText.replace(
+    /(marked\s+as\s*|\bfrom\s*)\(([1-5A-Ea-e])\)\s*(?:to|-)\s*\(([1-5A-Ea-e])\)/gi,
+    '$1[$2] to [$3]'
+  );
+
+  // Match all potential option markers: (1)..(5), (A)..(E), (a)..(e), A...E., A...E)
+  const markerRegex =
+    /(?:^|[\n\r\t]|\s{2,}|\s(?=\([1-5A-Ea-e]\)|[A-Ea-e][\.\)][ \t]))(?:\(([1-5]|[A-Ea-e])\)|([A-Ea-e])[\.\)])[ \t]*/g;
 
   const rawMatches: Array<{ label: string; startIndex: number; matchEndIndex: number; isNum: boolean }> = [];
   let m: RegExpExecArray | null;
 
-  while ((m = markerRegex.exec(rawText)) !== null) {
+  while ((m = markerRegex.exec(sanitizedText)) !== null) {
     const rawLabel = (m[1] || m[2]).trim();
     const isNum = /^\d+$/.test(rawLabel);
     const label = rawLabel.toUpperCase();
@@ -183,7 +191,7 @@ export function parseOptions(rawText: string): ParsedOption[] {
 
   if (rawMatches.length === 0) {
     // Check if the text consists of distinct stacked/tabbed lines (e.g. 2 to 6 lines)
-    const lines = rawText
+    const lines = sanitizedText
       .split(/\n+|\t{2,}/)
       .map((l) => cleanWatermarks(l.trim()))
       .filter((l) => l.length > 0 && !/^(?:Questions with|MathonGo|#PaperPhodnaHai)/i.test(l));
@@ -200,47 +208,54 @@ export function parseOptions(rawText: string): ParsedOption[] {
   }
 
   // Find valid contiguous increasing sequences (e.g. 1->2->3->4 or A->B->C->D)
+  const numMatches = rawMatches.filter((x) => x.isNum);
+  const letterMatches = rawMatches.filter((x) => !x.isNum);
+
+  const findConsecutive = (matches: typeof rawMatches) => {
+    let best: typeof rawMatches = [];
+    for (let i = 0; i < matches.length; i++) {
+      const currentSeq = [matches[i]];
+      let expectedNext = matches[i].isNum
+        ? parseInt(matches[i].label, 10) + 1
+        : matches[i].label.charCodeAt(0) + 1;
+
+      for (let j = i + 1; j < matches.length; j++) {
+        const candidate = matches[j];
+        const val = candidate.isNum ? parseInt(candidate.label, 10) : candidate.label.charCodeAt(0);
+        if (val === expectedNext) {
+          currentSeq.push(candidate);
+          expectedNext++;
+        }
+      }
+      if (currentSeq.length > best.length) {
+        best = currentSeq;
+      }
+    }
+    return best;
+  };
+
+  const bestNum = findConsecutive(numMatches);
+  const bestLetter = findConsecutive(letterMatches);
+
   let bestSequence: typeof rawMatches = [];
-
-  for (let i = 0; i < rawMatches.length; i++) {
-    const currentSeq = [rawMatches[i]];
-    let expectedNextNum = rawMatches[i].isNum ? parseInt(rawMatches[i].label, 10) + 1 : null;
-    let expectedNextCharCode = !rawMatches[i].isNum ? rawMatches[i].label.charCodeAt(0) + 1 : null;
-
-    for (let j = i + 1; j < rawMatches.length; j++) {
-      const candidate = rawMatches[j];
-      if (candidate.isNum && expectedNextNum !== null && parseInt(candidate.label, 10) === expectedNextNum) {
-        currentSeq.push(candidate);
-        expectedNextNum++;
-      } else if (!candidate.isNum && expectedNextCharCode !== null && candidate.label.charCodeAt(0) === expectedNextCharCode) {
-        currentSeq.push(candidate);
-        expectedNextCharCode++;
-      }
-    }
-
-    if (currentSeq.length >= bestSequence.length) {
-      if (
-        currentSeq.length > bestSequence.length ||
-        (currentSeq[0].isNum && !bestSequence[0]?.isNum) ||
-        (currentSeq[0].startIndex > (bestSequence[0]?.startIndex ?? 0))
-      ) {
-        bestSequence = currentSeq;
-      }
-    }
+  // If there are numbered options (1)..(4), prioritize them over statement labels A..E
+  if (bestNum.length >= 2) {
+    bestSequence = bestNum;
+  } else if (bestLetter.length >= 2) {
+    bestSequence = bestLetter;
+  } else {
+    bestSequence = rawMatches;
   }
-
-  // Use best sequence if it has at least 2 items, otherwise fallback to all matches
-  const selectedMatches = bestSequence.length >= 2 ? bestSequence : rawMatches;
 
   const options: ParsedOption[] = [];
 
-  for (let i = 0; i < selectedMatches.length; i++) {
-    const current = selectedMatches[i];
-    const nextStart = i + 1 < selectedMatches.length ? selectedMatches[i + 1].startIndex : rawText.length;
-    let optText = rawText.slice(current.matchEndIndex, nextStart).trim();
+  for (let i = 0; i < bestSequence.length; i++) {
+    const current = bestSequence[i];
+    const nextStart = i + 1 < bestSequence.length ? bestSequence[i + 1].startIndex : sanitizedText.length;
+    let optText = sanitizedText.slice(current.matchEndIndex, nextStart).trim();
 
     // Clean any trailing answer/solution/explanation tags if in the last option
-    if (i === selectedMatches.length - 1) {
+    if (i === bestSequence.length - 1) {
       optText = optText.replace(/(?:Answer|Ans|Correct\s*Answer|Key|Explanation|Solution)[\s\S]*$/i, '').trim();
     }
 
@@ -251,7 +266,7 @@ export function parseOptions(rawText: string): ParsedOption[] {
     const letter = isNum ? String.fromCharCode(64 + index) : current.label;
 
     if (optText.length > 0) {
-      options.push({ text: optText, label: current.label, letter, index });
+      options.push({ text: optText, label: current.label, letter, index, startIndex: current.startIndex });
     }
   }
 
@@ -354,16 +369,13 @@ export function parseAnswerKeyMap(solutionsText: string): Map<number, string> {
 export const FOOTER_WATERMARK_PATTERN =
   /(?:(?:\n|^)(?:[^\n]+\n)?Questions with Answer Keys[\s\S]*?(?:www\.mathongo\.com\b[^\n]*|https?:\/\/\S+|#PaperPhodnaHai\b[^\n]*)|(?:https?:\/\/\S+|www\.mathongo\.com\b[^\n]*|#PaperPhodnaHai\b[^\n]*|\bmathongo\b[^\n]*))/i;
 
-/**
- * Extracts ordered floating fragments from the bottom/footer-adjacent text layer
- */
 export function extractFloatingFragments(bottomText: string): string[] {
   if (!bottomText) return [];
-  const lines = bottomText.split(/\r?\n/);
-  const fragments: string[] = [];
+  const rawLines = bottomText.split(/\r?\n/);
   let currentTableBlock: string[] = [];
 
-  for (const rawLine of lines) {
+  const cleanedLines: string[] = [];
+  for (const rawLine of rawLines) {
     const line = rawLine.trim();
     if (!line) continue;
     if (
@@ -373,19 +385,50 @@ export function extractFloatingFragments(bottomText: string): string[] {
     ) {
       continue;
     }
+    cleanedLines.push(line);
+  }
 
+  // Merge only genuinely split formula lines where superscript/subscript split across lines
+  // e.g. "SF4, NH+" followed by "4 , [NiCl4]..." or "O-" followed by "2 , O2 2-, F2"
+  const mergedLines: string[] = [];
+  for (let i = 0; i < cleanedLines.length; i++) {
+    const line = cleanedLines[i];
+    const nextLine = cleanedLines[i + 1];
+
+    const isSplitSubscript = Boolean(
+      nextLine &&
+        (/[A-Za-z]\s*[\+\-−]\s*$/.test(line) && /^\s*[0-9]\s*,\s*/.test(nextLine)) ||
+        /^[0-9]\s*d\)/i.test(nextLine || '')
+    );
+
+    if (nextLine && isSplitSubscript) {
+      mergedLines.push(line + ' ' + nextLine);
+      i++; // skip nextLine
+    } else {
+      mergedLines.push(line);
+    }
+  }
+
+  const fragments: string[] = [];
+  for (const line of mergedLines) {
     // Check if this line is part of a List-I / List-II or Column matching table
-    const isTableLine = /^(?:List\s*[-–—I0-9]|Column\s*[-–—I0-9]|[A-D]\.\s*|I{1,3}\.\s*|IV\.\s*)/i.test(line);
+    const isTableLine = /^(?:List\s*[-–—I0-9]|Column\s*[-–—I0-9]|[A-D]\.\s*|I{1,3}\.\s*|IV\.\s*)/i.test(
+      line
+    );
     if (isTableLine) {
       currentTableBlock.push(line);
       continue;
-    } else if (currentTableBlock.length > 0) {
+    }
+    if (currentTableBlock.length > 0) {
       fragments.push(currentTableBlock.join('\n'));
       currentTableBlock = [];
     }
 
     if (line.includes('\t')) {
-      const parts = line.split('\t').map((p) => p.trim()).filter((p) => p.length > 0);
+      const parts = line
+        .split('\t')
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0);
       fragments.push(...parts);
     } else {
       fragments.push(line);
@@ -411,10 +454,18 @@ export function reattachDisplacedFragments(
     return sectionText || '';
   }
 
+  let text = sectionText;
+
   // 1. Protect tabs between already-filled options so they don't get treated as missing gaps
-  let text = sectionText.replace(
-    /(\([1-5A-Ea-e]\)[ \t]*[A-Za-z0-9][^\t\n\r]*?)[ \t]*\t[ \t]*(?=\([1-5A-Ea-e]\))/g,
-    '$1  '
+  text = text.replace(
+    /(\([1-5A-Ea-e]\)[ \t]*[^\t\n\r]+?)[ \t]*\t[ \t]*(?=\([1-5A-Ea-e]\))/g,
+    (match, p1) => {
+      const inner = p1.replace(/^\([1-5A-Ea-e]\)/, '').trim();
+      if (!inner || inner.toLowerCase() === 'and' || inner.toLowerCase() === 'both') {
+        return match;
+      }
+      return p1 + '  ';
+    }
   );
 
   // 2. Missing Match List / Match Column table gap:
@@ -423,16 +474,16 @@ export function reattachDisplacedFragments(
     '$1\t\n'
   );
 
-  // 3. Missing subject between 'and' and 'is/are': "and is a" -> "and \t is a"
-  text = text.replace(/\band[ \t]*\r?\n?[ \t]+(is|are)\b/gi, 'and \t $1');
-
-  // 4. Trailing incomplete word like 'Both' in an option: "(2) Both\n" -> "(2) Both \t "
+  // 3. Incomplete options with 'Both': "(2) Both" -> "(2) Both \t"
   text = text.replace(
     /(\bBoth\b)(?![ \t]*\t)[ \t]*(?=(?:\([1-5A-Ea-e]\)|[A-Ea-e][\.\)]|$|\r?\n))/gi,
     '$1 \t '
   );
 
-  // 5. Bare punctuation after keywords: "is .", "and .", "molecule .", "of ."
+  // 4. Missing subject between 'and' and 'is/are': "and \n is a" -> "and \t is a"
+  text = text.replace(/\band[ \t\r\n]+(is|are)\s+(?:a|an)\b/gi, 'and \t $1 ');
+
+  // 5. Bare punctuation after keywords: "is .", "and ."
   text = text.replace(/\b(and|to|is|are|of|in|for|from|=|:)[ \t]+([.,;])/gi, '$1 \t$2');
   text = text.replace(
     /\b(molecule|atom|species|compound|ion|radical|element)[ \t]+([.,;])/gi,
@@ -453,16 +504,20 @@ export function reattachDisplacedFragments(
 
   // 8. Walk through text replacing each gap '\t' sequentially with next unused fragment
   let fragIdx = 0;
-  let result = text.replace(/\t/g, () => {
+  let result = text.replace(/([^\s\t])?\t([^\s\t])?/g, (_match, before, after) => {
     if (fragIdx < floatingFragments.length) {
       const frag = floatingFragments[fragIdx++];
-      return frag;
+      const prefix = before ? `${before} ` : '';
+      const suffix = after ? (/[.,;]/.test(after) ? after : ` ${after}`) : '';
+      return `${prefix}${frag}${suffix}`;
     }
-    return '';
+    return (before || '') + (after || '');
   });
 
   // Ensure whitespace separation before inline option markers
   result = result.replace(/([^\s])(\([1-5A-Ea-e]\))/g, '$1 $2');
+  result = result.replace(/[ \t]+([.,;])/g, '$1');
+  result = result.replace(/[ \t]{2,}/g, ' ');
 
   return result;
 }
@@ -677,19 +732,16 @@ export class ExtractionService {
         });
       }
 
-      // Allocate images on this page to questions that reference figures/graphs
+      // Allocate images on this page only to questions that explicitly reference figures/graphs/structures
       let nextImgIdx = 0;
       for (const pq of pageQuestions) {
         const isStatementOnly = /Given below are two statements|Statement I:/i.test(pq.stemText);
-        const mentionsVisual = !isStatementOnly && /(?:figure|diagram|graph|track|as shown|shown in|semi-circular|circular|bead|string\s*\(ACB\)|rod|pivot|bob)/i.test(pq.stemText);
+        const mentionsVisual =
+          !isStatementOnly &&
+          /(?:figure|diagram|graph|track|as shown|shown in|semi-circular|circular|bead|string|rod|pivot|bob|Lewis\s+representation|Lewis\s+structure|representation\s+of|structure\s+of|marked\s+as\s*\[\d+\]|marked\s+as\s*\(\d+\)|marked\s+as\s*[A-D]|atoms\s+marked)/i.test(
+            pq.stemText
+          );
         if (mentionsVisual && nextImgIdx < qPage.images.length) {
-          pq.imageIndex = nextImgIdx;
-          nextImgIdx++;
-        }
-      }
-      for (const pq of pageQuestions) {
-        const isStatementOnly = /Given below are two statements|Statement I:/i.test(pq.stemText);
-        if (pq.imageIndex === undefined && !isStatementOnly && nextImgIdx < qPage.images.length) {
           pq.imageIndex = nextImgIdx;
           nextImgIdx++;
         }
@@ -730,7 +782,9 @@ export class ExtractionService {
         }
 
         // Clean stem of option markers based on first option marker
-        if (finalOptions.length > 0) {
+        if (finalOptions.length > 0 && finalOptions[0].startIndex !== undefined) {
+          finalStem = finalStem.slice(0, finalOptions[0].startIndex).trim();
+        } else if (finalOptions.length > 0) {
           const firstOptLabel = finalOptions[0].label;
           const isNum = /^\d+$/.test(firstOptLabel);
           const firstOptPattern = isNum
@@ -944,7 +998,9 @@ export class ExtractionService {
 
       // Extract actual stem (everything before first option)
       let actualStem = stemText;
-      if (optionsWithLetter.length > 0) {
+      if (optionsWithLetter.length > 0 && optionsWithLetter[0].startIndex !== undefined) {
+        actualStem = stemText.slice(0, optionsWithLetter[0].startIndex).trim();
+      } else if (optionsWithLetter.length > 0) {
         const firstOptLabel = optionsWithLetter[0].label;
         const isNum = /^\d+$/.test(firstOptLabel);
         const firstOptPattern = isNum

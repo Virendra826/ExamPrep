@@ -137,9 +137,47 @@ describe("Extraction Subsystem Regression Test Matrix (PROMPT 9)", () => {
       expect(q5.options[0].text).toContain("O2 −, N2 +");
       expect(q5.options[3].text).toContain("O2 +, N2 −");
 
+      // Verify Q6 has NO diagram assigned (no visual mentioned) and 4 options
+      const q6 = candidates[5];
+      expect(q6.diagram_url).toBeNull();
+      expect(q6.options.length).toBe(4);
+      expect(q6.options[0].text).toBe("0");
+
+      // Verify Q7 has correct reconstructed hybridizations in options
+      const q7 = candidates[6];
+      expect(q7.options.length).toBe(4);
+      expect(q7.options[0].text).toBe("sp2 and sp3");
+      expect(q7.options[1].text).toBe("Both sp3");
+      expect(q7.options[2].text).toBe("sp3 and sp2");
+      expect(q7.options[3].text).toBe("Both sp2");
+
+      // Verify Q8 captures Lewis structure diagram and correct formal charge options
+      const q8 = candidates[7];
+      expect(q8.diagram_url).not.toBeNull();
+      expect(q8.question_text).toContain("Lewis representation of HNO3 molecule");
+      expect(q8.options.length).toBe(4);
+      expect(q8.options[0].text).toBe("0, 0, −1, +1");
+      expect(q8.options[1].text).toBe("0, −1, 0, +1");
+      expect(q8.options[2].text).toBe("+1, 0, 0, −1");
+      expect(q8.options[3].text).toBe("0, +1, 0, −1");
+      expect(q8.correct_answer).toBe("0, +1, 0, −1");
+
+      // Verify Q9 preserves statements A-E in stem and keeps (1)-(4) as options
+      const q9 = candidates[8];
+      expect(q9.question_text).toContain("Which statements are NOT TRUE about XeO2 F2");
+      expect(q9.question_text).toContain("A. It has a see-saw shape");
+      expect(q9.question_text).toContain("B. Xe has 5 electron pairs in its valence shell in XeO2 F2");
+      expect(q9.options.length).toBe(4);
+      expect(q9.options[0].text).toBe("B, C and E Only");
+
+      // Verify Q10 restores [Ni(CN)4]2- in Statement I and incomplete octet species in Statement II
+      const q10 = candidates[9];
+      expect(q10.question_text).toContain("[Ni(CN)4]2−");
+      expect(q10.question_text).toContain("NO2, BeH2, BF3, AlCl3");
+
       // Verify clean candidates have valid options
       const cleanCandidates = candidates.filter((c) => c.options.length >= 2);
-      expect(cleanCandidates.length).toBeGreaterThanOrEqual(10);
+      expect(cleanCandidates.length).toBeGreaterThanOrEqual(13);
     });
   });
 
