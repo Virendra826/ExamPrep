@@ -18,12 +18,15 @@ import { CandidateQuestion } from './ingestion.types.js';
 export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB configurable limit
 
 /**
- * Reconciles Gemini-extracted candidate questions with deterministic local parser candidates.
+ * Reconciles Gemini-extracted candidate questions with deterministic local parser candidates
+ * by matching question numbers (e.g. Q1 with Q1, Q2 with Q2).
+ *
  * For each question:
  * - If local parser produced a HIGH-confidence candidate and Gemini produced LOW/MEDIUM confidence,
  *   merges local candidate's options and correct answer while preserving visual diagrams and stem from Gemini.
  * - If both agree or Gemini is HIGH confidence, preserves Gemini candidate.
  * - If ambiguous/disagreeing, retains Gemini candidate, flags needsReview = true, and appends reconciliation reason.
+ * - If local parser detected a question that Gemini missed, surfaces it as a LOCAL_ONLY_RECOVERED candidate.
  */
 export function reconcileHybridCandidates(
   geminiCandidates: CandidateQuestion[],
@@ -33,12 +36,37 @@ export function reconcileHybridCandidates(
     return geminiCandidates;
   }
 
-  return geminiCandidates.map((gCand, idx) => {
-    // Match corresponding local candidate by index
-    const lCand = localCandidates[idx];
-    if (!lCand) {
-      return gCand;
+  // 1. Build a Map<number, CandidateQuestion> from localCandidates keyed by questionNumber
+  const localByQNum = new Map<number, CandidateQuestion>();
+  for (const lCand of localCandidates) {
+    if (typeof lCand.questionNumber === 'number' && !isNaN(lCand.questionNumber)) {
+      localByQNum.set(lCand.questionNumber, lCand);
+    } else {
+      console.warn(
+        `[HybridReconciliation] Local candidate has undefined questionNumber, skipping key mapping: ${lCand.id}`
+      );
     }
+  }
+
+  const matchedLocalQNums = new Set<number>();
+  const reconciledList: CandidateQuestion[] = [];
+
+  // 2. Process each Gemini candidate by questionNumber
+  for (const gCand of geminiCandidates) {
+    if (typeof gCand.questionNumber !== 'number' || isNaN(gCand.questionNumber)) {
+      // If gCand has no questionNumber, skip reconciliation for this candidate entirely
+      reconciledList.push(gCand);
+      continue;
+    }
+
+    const lCand = localByQNum.get(gCand.questionNumber);
+    if (!lCand) {
+      // No local counterpart found for this question number -> keep Gemini candidate unchanged
+      reconciledList.push(gCand);
+      continue;
+    }
+
+    matchedLocalQNums.add(gCand.questionNumber);
 
     // Case 1: Local parser achieved HIGH confidence while Gemini was LOW or MEDIUM
     if (lCand.confidence === 'HIGH' && gCand.confidence !== 'HIGH') {
@@ -50,19 +78,18 @@ export function reconcileHybridCandidates(
         ? `${gCand.reviewReason}; ${reasonNotes}`
         : reasonNotes;
 
-      return {
+      reconciledList.push({
         ...gCand,
         options: mergedOptions,
         correct_answer: mergedAnswer,
         confidence: lCand.confidence,
-        extractionMethod: 'GEMINI_HYBRID' as any,
+        extractionMethod: 'GEMINI_HYBRID',
         needsReview: lCand.needsReview ?? false,
         reviewReason: updatedReason,
-      };
+      });
     }
-
     // Case 2: Both extractions produced candidates, but differ on options or answer
-    if (
+    else if (
       lCand.options &&
       gCand.options &&
       (lCand.options.length !== gCand.options.length ||
@@ -73,17 +100,47 @@ export function reconcileHybridCandidates(
         ? `${gCand.reviewReason}; ${reconciliationNote}`
         : reconciliationNote;
 
-      return {
+      reconciledList.push({
         ...gCand,
-        extractionMethod: 'GEMINI_HYBRID' as any,
+        extractionMethod: 'GEMINI_HYBRID',
         needsReview: true,
         reviewReason: updatedReason,
-      };
+      });
     }
+    // Case 3: Both agree or Gemini was HIGH confidence
+    else {
+      reconciledList.push(gCand);
+    }
+  }
 
-    // Case 3: Gemini was high confidence or local parser did not produce a better result
-    return gCand;
+  // 3. Recover any local candidates whose questionNumber was not returned by Gemini
+  const localOnlyRecovered: CandidateQuestion[] = [];
+  for (const lCand of localCandidates) {
+    if (
+      typeof lCand.questionNumber === 'number' &&
+      !matchedLocalQNums.has(lCand.questionNumber) &&
+      !geminiCandidates.some((g) => g.questionNumber === lCand.questionNumber)
+    ) {
+      const reviewReason = `[Local Recovery: Question Q${lCand.questionNumber} detected by local parser was not returned by Gemini; surfaced for manual review]`;
+      localOnlyRecovered.push({
+        ...lCand,
+        extractionMethod: 'LOCAL_ONLY_RECOVERED',
+        needsReview: true,
+        reviewReason: lCand.reviewReason ? `${lCand.reviewReason}; ${reviewReason}` : reviewReason,
+      });
+    }
+  }
+
+  // Combine and sort in natural question number order
+  const combined = [...reconciledList, ...localOnlyRecovered];
+  combined.sort((a, b) => {
+    if (a.questionNumber !== undefined && b.questionNumber !== undefined) {
+      return a.questionNumber - b.questionNumber;
+    }
+    return 0;
   });
+
+  return combined;
 }
 
 export class IngestionService {
@@ -146,6 +203,7 @@ export class IngestionService {
 
     try {
       let candidates: CandidateQuestion[] = [];
+      let hybridReconciliationTriggered = false;
 
       if (env.EXTRACTION_ENGINE === 'local') {
         // Local engine only
@@ -189,6 +247,7 @@ export class IngestionService {
             try {
               const localCands = await extractionService.extractFromPdf(file.buffer);
               candidates = reconcileHybridCandidates(geminiResult.candidates, localCands);
+              hybridReconciliationTriggered = true;
             } catch (locErr: unknown) {
               console.warn(
                 `[Ingestion] Hybrid local reconciliation failed, retaining Gemini candidates:`,
@@ -208,6 +267,21 @@ export class IngestionService {
           }
         }
       }
+
+      // Safe Diagnostic Logging (Server-side summary without leaking PDF text or keys)
+      const highCount = candidates.filter((c) => c.confidence === 'HIGH').length;
+      const mediumCount = candidates.filter((c) => c.confidence === 'MEDIUM').length;
+      const lowCount = candidates.filter((c) => c.confidence === 'LOW').length;
+      const localRecoveredCount = candidates.filter(
+        (c) => c.extractionMethod === 'LOCAL_ONLY_RECOVERED'
+      ).length;
+
+      console.info(
+        `[Ingestion Diagnostic] Batch ${batch.id}: engine=${env.EXTRACTION_ENGINE}, candidates=${candidates.length}, ` +
+          `confidence=[HIGH:${highCount}, MEDIUM:${mediumCount}, LOW:${lowCount}], ` +
+          `hybridReconciled=${hybridReconciliationTriggered ? 'yes' : 'no'}, ` +
+          `localOnlyRecovered=${localRecoveredCount}`
+      );
 
       // 7. Store candidate questions in in-memory store
       ingestionStore.setCandidates(batch.id, candidates);

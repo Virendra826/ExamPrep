@@ -356,6 +356,7 @@ export function normalizeGeminiResponse(
 
     candidates.push({
       id: `cand-${crypto.randomUUID()}`,
+      questionNumber: q.questionNumber,
       question_text: finalStem,
       options: normalizedOptions,
       correct_answer: resolvedCorrectAnswer,

@@ -5,9 +5,10 @@ import { normalizeGeminiResponse } from '../src/modules/ingestion/gemini/geminiN
 import { GeminiExtractionResponse } from '../src/modules/ingestion/gemini/gemini.schema.js';
 import { GeminiExtractionService } from '../src/modules/ingestion/gemini/geminiExtraction.service.js';
 import { renderPageToImage } from '../src/modules/ingestion/pageRenderer.js';
-import { storageProvider } from '../src/storage/index.js';
+import { reconcileHybridCandidates } from '../src/modules/ingestion/ingestion.service.js';
+import { CandidateQuestion } from '../src/modules/ingestion/ingestion.types.js';
 
-describe('Chemical Bonding and Molecular Structure — Gemini Regression & Content Fidelity', () => {
+describe('Gemini Document Understanding — Normalizer Fidelity & Hybrid Reconciliation Unit Tests', () => {
   const fixturesDir = path.resolve(__dirname, 'fixtures');
   const cbPdfPath = path.resolve(
     fixturesDir,
@@ -16,6 +17,185 @@ describe('Chemical Bonding and Molecular Structure — Gemini Regression & Conte
 
   // Test Oracle Answer Key for Q1 to Q13 (asserted ONLY in this test file, never in production extraction logic)
   const EXPECTED_ORACLE_ANSWERS = ['3', '2', '2', '3', '4', '4', '1', '4', '1', '2', '1', '3', '3'];
+
+  describe('1. Hybrid Reconciliation with Mismatched Array Counts & Order (Task 2)', () => {
+    it('correctly matches candidates by questionNumber (not array index) and recovers local-only questions without cross-contamination', () => {
+      // Gemini returned only Q1 (LOW confidence), Q3 (LOW confidence), and Q4 (HIGH confidence)
+      const geminiCandidates: CandidateQuestion[] = [
+        {
+          id: 'cand-g-1',
+          questionNumber: 1,
+          question_text: 'Gemini Q1 Text: Bond energy',
+          options: [{ text: 'G-Opt-1' }], // Poor option extraction
+          correct_answer: '',
+          question_type: 'CONCEPT',
+          needsReview: true,
+          confidence: 'LOW',
+          extractionMethod: 'GEMINI_DOCUMENT',
+        },
+        {
+          id: 'cand-g-3',
+          questionNumber: 3,
+          question_text: 'Gemini Q3 Text: Dipole moment',
+          options: [{ text: 'G-Opt-3A' }, { text: 'G-Opt-3B' }],
+          correct_answer: 'G-Opt-3A',
+          question_type: 'CONCEPT',
+          needsReview: true,
+          confidence: 'MEDIUM',
+          extractionMethod: 'GEMINI_DOCUMENT',
+        },
+        {
+          id: 'cand-g-4',
+          questionNumber: 4,
+          question_text: 'Gemini Q4 Text: Hybridization of SF6',
+          options: [
+            { text: 'sp3d2' },
+            { text: 'sp3d' },
+            { text: 'dsp2' },
+            { text: 'sp3' },
+          ],
+          correct_answer: 'sp3d2',
+          question_type: 'PYQ',
+          needsReview: false,
+          confidence: 'HIGH',
+          extractionMethod: 'GEMINI_DOCUMENT',
+        },
+      ];
+
+      // Local parser detected Q1, Q2, Q3, Q4, Q5 (5 questions total)
+      const localCandidates: CandidateQuestion[] = [
+        {
+          id: 'cand-l-1',
+          questionNumber: 1,
+          question_text: 'Local Q1 Text: Bond energy',
+          options: [
+            { text: 'Local-Opt-1A (Correct)' },
+            { text: 'Local-Opt-1B' },
+            { text: 'Local-Opt-1C' },
+            { text: 'Local-Opt-1D' },
+          ],
+          correct_answer: 'Local-Opt-1A (Correct)',
+          question_type: 'CONCEPT',
+          needsReview: false,
+          confidence: 'HIGH',
+          extractionMethod: 'TEXT',
+        },
+        {
+          id: 'cand-l-2',
+          questionNumber: 2, // Gemini completely missed Q2!
+          question_text: 'Local Q2 Text: Hydrogen bonding in HF',
+          options: [
+            { text: 'Strong H-bond' },
+            { text: 'Weak H-bond' },
+            { text: 'No H-bond' },
+            { text: 'Ionic bond' },
+          ],
+          correct_answer: 'Strong H-bond',
+          question_type: 'CONCEPT',
+          needsReview: false,
+          confidence: 'HIGH',
+          extractionMethod: 'TEXT',
+        },
+        {
+          id: 'cand-l-3',
+          questionNumber: 3,
+          question_text: 'Local Q3 Text: Dipole moment',
+          options: [
+            { text: 'Local-Opt-3A (Verified)' },
+            { text: 'Local-Opt-3B' },
+            { text: 'Local-Opt-3C' },
+            { text: 'Local-Opt-3D' },
+          ],
+          correct_answer: 'Local-Opt-3A (Verified)',
+          question_type: 'CONCEPT',
+          needsReview: false,
+          confidence: 'HIGH',
+          extractionMethod: 'TEXT',
+        },
+        {
+          id: 'cand-l-4',
+          questionNumber: 4,
+          question_text: 'Local Q4 Text: Hybridization of SF6',
+          options: [
+            { text: 'sp3d2' },
+            { text: 'sp3d' },
+            { text: 'dsp2' },
+            { text: 'sp3' },
+          ],
+          correct_answer: 'sp3d2',
+          question_type: 'PYQ',
+          needsReview: false,
+          confidence: 'HIGH',
+          extractionMethod: 'TEXT',
+        },
+        {
+          id: 'cand-l-5',
+          questionNumber: 5, // Gemini completely missed Q5!
+          question_text: 'Local Q5 Text: Resonance energy of Benzene',
+          options: [
+            { text: '150 kJ/mol' },
+            { text: '200 kJ/mol' },
+            { text: '50 kJ/mol' },
+            { text: '0 kJ/mol' },
+          ],
+          correct_answer: '150 kJ/mol',
+          question_type: 'CONCEPT',
+          needsReview: false,
+          confidence: 'HIGH',
+          extractionMethod: 'TEXT',
+        },
+      ];
+
+      const reconciled = reconcileHybridCandidates(geminiCandidates, localCandidates);
+
+      // Total questions reconciled must be 5 (Q1, Q2, Q3, Q4, Q5)
+      expect(reconciled).toHaveLength(5);
+
+      // Verify Q1: Merged from local Q1 (not affected by position)
+      const q1 = reconciled.find((c) => c.questionNumber === 1);
+      expect(q1).toBeDefined();
+      expect(q1?.question_text).toBe('Gemini Q1 Text: Bond energy');
+      expect(q1?.correct_answer).toBe('Local-Opt-1A (Correct)');
+      expect(q1?.options).toHaveLength(4);
+      expect(q1?.options[0].text).toBe('Local-Opt-1A (Correct)');
+      expect(q1?.confidence).toBe('HIGH');
+      expect(q1?.extractionMethod).toBe('GEMINI_HYBRID');
+
+      // Verify Q2: Recovered from local parser as LOCAL_ONLY_RECOVERED
+      const q2 = reconciled.find((c) => c.questionNumber === 2);
+      expect(q2).toBeDefined();
+      expect(q2?.question_text).toBe('Local Q2 Text: Hydrogen bonding in HF');
+      expect(q2?.extractionMethod).toBe('LOCAL_ONLY_RECOVERED');
+      expect(q2?.needsReview).toBe(true);
+      expect(q2?.reviewReason).toContain('Question Q2 detected by local parser was not returned by Gemini');
+
+      // Verify Q3: Matched to local Q3 (CRITICAL: under the old index-based bug, index 1 would match to Q2!)
+      const q3 = reconciled.find((c) => c.questionNumber === 3);
+      expect(q3).toBeDefined();
+      expect(q3?.question_text).toBe('Gemini Q3 Text: Dipole moment');
+      expect(q3?.correct_answer).toBe('Local-Opt-3A (Verified)'); // NOT "Strong H-bond" from Q2!
+      expect(q3?.options[0].text).toBe('Local-Opt-3A (Verified)');
+      expect(q3?.confidence).toBe('HIGH');
+      expect(q3?.extractionMethod).toBe('GEMINI_HYBRID');
+
+      // Verify Q4: Kept Gemini HIGH confidence result without unnecessary alteration
+      const q4 = reconciled.find((c) => c.questionNumber === 4);
+      expect(q4).toBeDefined();
+      expect(q4?.question_text).toBe('Gemini Q4 Text: Hybridization of SF6');
+      expect(q4?.correct_answer).toBe('sp3d2');
+      expect(q4?.extractionMethod).toBe('GEMINI_DOCUMENT');
+
+      // Verify Q5: Recovered from local parser as LOCAL_ONLY_RECOVERED
+      const q5 = reconciled.find((c) => c.questionNumber === 5);
+      expect(q5).toBeDefined();
+      expect(q5?.question_text).toBe('Local Q5 Text: Resonance energy of Benzene');
+      expect(q5?.extractionMethod).toBe('LOCAL_ONLY_RECOVERED');
+      expect(q5?.needsReview).toBe(true);
+      expect(q5?.reviewReason).toContain('Question Q5 detected by local parser was not returned by Gemini');
+    });
+  });
+
+  describe('2. Normalizer Content Fidelity Unit Tests', () => {
 
   it('verifies the Chemical Bonding PDF fixture file exists in the repository fixtures directory', () => {
     expect(fs.existsSync(cbPdfPath)).toBe(true);
@@ -243,4 +423,6 @@ describe('Chemical Bonding and Molecular Structure — Gemini Regression & Conte
     expect(EXPECTED_ORACLE_ANSWERS[8]).toBe('1'); // Q9
     expect(EXPECTED_ORACLE_ANSWERS[12]).toBe('3'); // Q13
   });
+  });
 });
+

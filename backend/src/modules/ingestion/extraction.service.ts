@@ -847,6 +847,10 @@ export class ExtractionService {
 
         candidates.push({
           id: `cand-${crypto.randomUUID()}`,
+          questionNumber:
+            pq.questionNumber !== null && pq.questionNumber !== undefined
+              ? pq.questionNumber
+              : undefined,
           question_text: finalStem,
           options: finalOptions.map((o) => ({ text: o.text })),
           correct_answer: resolvedCorrectAnswer,
@@ -1068,6 +1072,10 @@ export class ExtractionService {
 
       candidates.push({
         id: `cand-${crypto.randomUUID()}`,
+        questionNumber:
+          questionNumber !== null && questionNumber !== undefined
+            ? questionNumber
+            : undefined,
         question_text: actualStem || block.slice(0, 100),
         options: optionsWithLetter.map((o) => ({ text: o.text })),
         correct_answer: resolvedCorrectAnswer,

@@ -123,6 +123,7 @@ describe('Gemini Primary with Local Fallback Integration', () => {
       candidates: [
         {
           id: 'cand-gemini-low-1',
+          questionNumber: 1,
           question_text: 'What is the critical section problem in operating systems?',
           options: [],
           correct_answer: '',
@@ -143,6 +144,7 @@ describe('Gemini Primary with Local Fallback Integration', () => {
     vi.spyOn(extractionService, 'extractFromPdf').mockResolvedValue([
       {
         id: 'cand-local-high-1',
+        questionNumber: 1,
         question_text: 'What is the critical section problem in operating systems?',
         options: [
           { text: 'A section where shared resources are accessed' },
@@ -194,6 +196,7 @@ describe('Gemini Primary with Local Fallback Integration', () => {
       candidates: [
         {
           id: 'cand-gemini-disagree-1',
+          questionNumber: 1,
           question_text: 'Which molecule is polar?',
           options: [{ text: 'CO2' }, { text: 'H2O' }, { text: 'BF3' }, { text: 'CH4' }],
           correct_answer: 'H2O',
@@ -213,6 +216,7 @@ describe('Gemini Primary with Local Fallback Integration', () => {
     vi.spyOn(extractionService, 'extractFromPdf').mockResolvedValue([
       {
         id: 'cand-local-disagree-1',
+        questionNumber: 1,
         question_text: 'Which molecule is polar?',
         options: [{ text: 'CO2' }, { text: 'H2O' }, { text: 'BF3' }, { text: 'CH4' }],
         correct_answer: 'CO2', // Disagrees with Gemini

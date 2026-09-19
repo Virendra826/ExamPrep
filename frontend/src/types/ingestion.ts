@@ -26,6 +26,7 @@ export interface CandidateOption {
 
 export interface CandidateQuestion {
   id: string;
+  questionNumber?: number;
   question_text: string;
   options: CandidateOption[];
   correct_answer: string;
@@ -37,7 +38,13 @@ export interface CandidateQuestion {
   exam_year?: number | null;
   needsReview: boolean;
   confidence?: "HIGH" | "MEDIUM" | "LOW";
-  extractionMethod?: "TEXT" | "TEXT_PLUS_VISION" | "GEMINI_DOCUMENT" | "GEMINI_HYBRID";
+  extractionMethod?:
+    | "TEXT"
+    | "TEXT_PLUS_VISION"
+    | "GEMINI_DOCUMENT"
+    | "GEMINI_HYBRID"
+    | "LOCAL_ONLY_RECOVERED"
+    | "DETERMINISTIC_PDF";
   sourcePages?: number[];
   reviewReason?: string | null;
   subject_id?: string;
