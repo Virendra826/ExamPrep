@@ -10,7 +10,17 @@ import {
 
 describe("Extraction Subsystem Regression Test Matrix (PROMPT 9)", () => {
   const fixturesDir = path.resolve(__dirname, "fixtures");
-  const wpePdfPath = path.resolve(fixturesDir, "work_power_energy.pdf");
+  const resolveFixture = (...names: string[]) => {
+    for (const name of names) {
+      const p = path.resolve(fixturesDir, name);
+      if (fs.existsSync(p)) return p;
+    }
+    return path.resolve(fixturesDir, names[0]);
+  };
+  const wpePdfPath = resolveFixture(
+    "Work Power Energy - JEE Main 2026 (Jan) - MathonGo.pdf",
+    "work_power_energy.pdf"
+  );
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -77,9 +87,12 @@ describe("Extraction Subsystem Regression Test Matrix (PROMPT 9)", () => {
 
   describe("Matrix 2: Named Reference PDF — Chemical Bonding and Molecular Structure — JEE Main 2026 (Jan) — MathonGo", () => {
     it("extracts all 13 questions with real chemical formulas and valid answers", async () => {
-      const chemPdfPath = path.resolve(fixturesDir, "chemical_bonding.pdf");
+      const chemPdfPath = resolveFixture(
+        "Chemical Bonding and Molecular Structure - JEE Main 2026 (Jan) - MathonGo.pdf",
+        "chemical_bonding.pdf"
+      );
       if (!fs.existsSync(chemPdfPath)) {
-        throw new Error("Fixture chemical_bonding.pdf not found; please supply the file.");
+        throw new Error("Fixture chemical bonding PDF not found; please supply the file.");
       }
 
       const pdfBuffer = fs.readFileSync(chemPdfPath);

@@ -7,8 +7,22 @@ import { geminiExtractionService } from '../src/modules/ingestion/gemini/index.j
 import { extractionService } from '../src/modules/ingestion/extraction.service.js';
 
 describe('Gemini Primary with Local Fallback Integration', () => {
-  const cbPdfPath = path.resolve(__dirname, 'fixtures', 'chemical_bonding.pdf');
-  const wpePdfPath = path.resolve(__dirname, 'fixtures', 'work_power_energy.pdf');
+  const fixturesDir = path.resolve(__dirname, 'fixtures');
+  const resolveFixture = (...names: string[]) => {
+    for (const name of names) {
+      const p = path.resolve(fixturesDir, name);
+      if (fs.existsSync(p)) return p;
+    }
+    return path.resolve(fixturesDir, names[0]);
+  };
+  const cbPdfPath = resolveFixture(
+    'Chemical Bonding and Molecular Structure - JEE Main 2026 (Jan) - MathonGo.pdf',
+    'chemical_bonding.pdf'
+  );
+  const wpePdfPath = resolveFixture(
+    'Work Power Energy - JEE Main 2026 (Jan) - MathonGo.pdf',
+    'work_power_energy.pdf'
+  );
   let adminUserId: string;
 
   beforeAll(async () => {
