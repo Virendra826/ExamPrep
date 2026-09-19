@@ -32,7 +32,9 @@ CRITICAL EXTRACTION RULES:
 
 6. VISUAL CONTENT & DIAGRAMS:
    - If a question includes a visual diagram, circuit, graph, molecular structure, geometry figure, or chart, mark hasVisual = true.
-   - Describe any visual element in visualElements with its type and a concise description (e.g. "Lewis structure of HNO3 with numbered atoms").
+   - Describe any visual element in visualElements with its type, pageNumber, and a concise description (e.g. "Lewis structure of HNO3 with numbered atoms").
+   - When you can confidently localize the visual region on the page, provide its normalized boundingBox: { x, y, width, height } (all numbers between 0.0 and 1.0 representing top-left corner coordinates x, y, width, and height as a fraction of the page).
+   - Omit the boundingBox field (leave undefined) rather than guessing when you cannot accurately localize the visual.
    - Associate visual elements ONLY with the question they logically belong to.
    - NEVER include base64 image data ("data:image/..."), data URLs, or binary image payloads in "questionText" or any text field. Visual elements must be represented solely through the visualElements metadata structure.
 

@@ -21,6 +21,7 @@ const envSchema = z.object({
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
   EXTRACTION_ENGINE: z.enum(["gemini", "hybrid", "local"]).default("hybrid"),
+  HYBRID_RECONCILIATION_THRESHOLD: z.coerce.number().min(0).max(1).default(0.3),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -28,6 +28,7 @@
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.4.0",
     "pdf-parse": "^2.4.5",
+    "sharp": "^0.35.4",
     "zod": "^4.6.5"
   },
   "devDependencies": {
@@ -40,6 +41,7 @@
     "@types/multer": "^2.2.0",
     "@types/node": "^24.13.3",
     "@types/pdf-parse": "^1.1.5",
+    "@types/sharp": "^0.31.1",
     "@types/supertest": "^6.0.2",
     "eslint": "^9.21.0",
     "eslint-config-prettier": "^10.0.1",

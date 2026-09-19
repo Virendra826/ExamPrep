@@ -71,6 +71,58 @@ describe('Gemini PDF Document Extraction Integration', () => {
       }
     });
 
+    it('validates boundingBox coordinates in visualElements schema', () => {
+      const validVisual = {
+        type: 'DIAGRAM',
+        description: 'Circuit diagram',
+        pageNumber: 1,
+        boundingBox: {
+          x: 0.1,
+          y: 0.2,
+          width: 0.5,
+          height: 0.4,
+        },
+      };
+
+      const invalidVisual = {
+        type: 'DIAGRAM',
+        boundingBox: {
+          x: -0.5, // Invalid negative coordinate
+          y: 0.2,
+          width: 0.5,
+          height: 0.4,
+        },
+      };
+
+      const result = geminiExtractionResponseSchema.safeParse({
+        questions: [
+          {
+            questionNumber: 1,
+            questionText: 'Test question with visual',
+            hasVisual: true,
+            visualElements: [validVisual],
+            options: [{ label: '1', text: 'Option A' }],
+          },
+        ],
+        answerKey: [{ questionNumber: 1, answer: '1' }],
+      });
+      expect(result.success).toBe(true);
+
+      const invalidResult = geminiExtractionResponseSchema.safeParse({
+        questions: [
+          {
+            questionNumber: 1,
+            questionText: 'Test question with invalid visual',
+            hasVisual: true,
+            visualElements: [invalidVisual],
+            options: [{ label: '1', text: 'Option A' }],
+          },
+        ],
+        answerKey: [{ questionNumber: 1, answer: '1' }],
+      });
+      expect(invalidResult.success).toBe(false);
+    });
+
     it('rejects invalid schema structure', () => {
       const invalidData = {
         questions: 'invalid string instead of array',

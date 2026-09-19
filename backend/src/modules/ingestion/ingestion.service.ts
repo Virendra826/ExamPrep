@@ -17,6 +17,75 @@ import { CandidateQuestion } from './ingestion.types.js';
 
 export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB configurable limit
 
+/**
+ * Reconciles Gemini-extracted candidate questions with deterministic local parser candidates.
+ * For each question:
+ * - If local parser produced a HIGH-confidence candidate and Gemini produced LOW/MEDIUM confidence,
+ *   merges local candidate's options and correct answer while preserving visual diagrams and stem from Gemini.
+ * - If both agree or Gemini is HIGH confidence, preserves Gemini candidate.
+ * - If ambiguous/disagreeing, retains Gemini candidate, flags needsReview = true, and appends reconciliation reason.
+ */
+export function reconcileHybridCandidates(
+  geminiCandidates: CandidateQuestion[],
+  localCandidates: CandidateQuestion[]
+): CandidateQuestion[] {
+  if (!localCandidates || localCandidates.length === 0) {
+    return geminiCandidates;
+  }
+
+  return geminiCandidates.map((gCand, idx) => {
+    // Match corresponding local candidate by index
+    const lCand = localCandidates[idx];
+    if (!lCand) {
+      return gCand;
+    }
+
+    // Case 1: Local parser achieved HIGH confidence while Gemini was LOW or MEDIUM
+    if (lCand.confidence === 'HIGH' && gCand.confidence !== 'HIGH') {
+      const mergedOptions =
+        lCand.options && lCand.options.length >= 2 ? lCand.options : gCand.options;
+      const mergedAnswer = lCand.correct_answer || gCand.correct_answer;
+      const reasonNotes = `[Reconciled: Local deterministic parser provided higher confidence options/answer (${lCand.confidence}) over Gemini (${gCand.confidence})]`;
+      const updatedReason = gCand.reviewReason
+        ? `${gCand.reviewReason}; ${reasonNotes}`
+        : reasonNotes;
+
+      return {
+        ...gCand,
+        options: mergedOptions,
+        correct_answer: mergedAnswer,
+        confidence: lCand.confidence,
+        extractionMethod: 'GEMINI_HYBRID' as any,
+        needsReview: lCand.needsReview ?? false,
+        reviewReason: updatedReason,
+      };
+    }
+
+    // Case 2: Both extractions produced candidates, but differ on options or answer
+    if (
+      lCand.options &&
+      gCand.options &&
+      (lCand.options.length !== gCand.options.length ||
+        (lCand.correct_answer && gCand.correct_answer && lCand.correct_answer !== gCand.correct_answer))
+    ) {
+      const reconciliationNote = `[Reconciled: Gemini and local parser disagree on option set/answer; manual review required]`;
+      const updatedReason = gCand.reviewReason
+        ? `${gCand.reviewReason}; ${reconciliationNote}`
+        : reconciliationNote;
+
+      return {
+        ...gCand,
+        extractionMethod: 'GEMINI_HYBRID' as any,
+        needsReview: true,
+        reviewReason: updatedReason,
+      };
+    }
+
+    // Case 3: Gemini was high confidence or local parser did not produce a better result
+    return gCand;
+  });
+}
+
 export class IngestionService {
   // Validate chapter belongs to subject
   private async verifyChapterSubject(chapterId: string, subjectId: string): Promise<void> {
@@ -78,29 +147,65 @@ export class IngestionService {
     try {
       let candidates: CandidateQuestion[] = [];
 
-      // 1. PRIMARY: Gemini Document Understanding (if configured and enabled)
-      if (geminiExtractionService.isConfigured() && env.EXTRACTION_ENGINE !== 'local') {
-        try {
-          const geminiResult = await geminiExtractionService.extractQuestionsFromPdf(
-            file.buffer,
-            originalFilename
-          );
-          if (geminiResult.candidates && geminiResult.candidates.length > 0) {
-            candidates = geminiResult.candidates;
-          }
-        } catch (geminiErr: unknown) {
-          const msg = geminiErr instanceof Error ? geminiErr.message : 'Unknown Gemini error';
-          console.warn(`[Ingestion] Primary Gemini extraction failed (${msg}), falling back to local PDF parser...`);
-        }
-      }
-
-      // 2. FALLBACK: Deterministic local PDF parser
-      if (candidates.length === 0) {
+      if (env.EXTRACTION_ENGINE === 'local') {
+        // Local engine only
         try {
           candidates = await extractionService.extractFromPdf(file.buffer);
         } catch {
           const rawText = await extractionService.extractTextFromPdf(file.buffer);
           candidates = extractionService.parseCandidatesFromText(rawText);
+        }
+      } else {
+        // Engine is 'gemini' or 'hybrid'
+        let geminiSucceeded = false;
+        let geminiResult: any = null;
+
+        if (geminiExtractionService.isConfigured()) {
+          try {
+            geminiResult = await geminiExtractionService.extractQuestionsFromPdf(
+              file.buffer,
+              originalFilename
+            );
+            if (geminiResult.candidates && geminiResult.candidates.length > 0) {
+              candidates = geminiResult.candidates;
+              geminiSucceeded = true;
+            }
+          } catch (geminiErr: unknown) {
+            const msg = geminiErr instanceof Error ? geminiErr.message : 'Unknown Gemini error';
+            console.warn(`[Ingestion] Primary Gemini extraction failed (${msg}), falling back to local PDF parser...`);
+          }
+        }
+
+        // Hybrid mode reconciliation: if Gemini succeeded but has critical errors or low confidence
+        if (geminiSucceeded && geminiResult && env.EXTRACTION_ENGINE === 'hybrid') {
+          const totalCands = geminiResult.candidates.length;
+          const nonHighCount =
+            (geminiResult.confidenceCounts?.medium || 0) + (geminiResult.confidenceCounts?.low || 0);
+          const nonHighRatio = totalCands > 0 ? nonHighCount / totalCands : 0;
+          const triggerReconciliation =
+            geminiResult.hasCriticalErrors || nonHighRatio > env.HYBRID_RECONCILIATION_THRESHOLD;
+
+          if (triggerReconciliation) {
+            try {
+              const localCands = await extractionService.extractFromPdf(file.buffer);
+              candidates = reconcileHybridCandidates(geminiResult.candidates, localCands);
+            } catch (locErr: unknown) {
+              console.warn(
+                `[Ingestion] Hybrid local reconciliation failed, retaining Gemini candidates:`,
+                locErr
+              );
+            }
+          }
+        }
+
+        // Fallback to local if Gemini was unconfigured, disabled, or failed completely
+        if (candidates.length === 0) {
+          try {
+            candidates = await extractionService.extractFromPdf(file.buffer);
+          } catch {
+            const rawText = await extractionService.extractTextFromPdf(file.buffer);
+            candidates = extractionService.parseCandidatesFromText(rawText);
+          }
         }
       }
 

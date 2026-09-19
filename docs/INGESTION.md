@@ -5,10 +5,12 @@ The Ingestion module (`backend/src/modules/ingestion`) handles the intake of edu
 
 Per the master architecture guidelines:
 1. **Strict Decoupling**: Ingestion is completely decoupled from quiz generation. The quiz engine never parses, stores, or accesses PDF files at quiz runtime.
-2. **Primary Multimodal Document Understanding (Google Gemini)**: Uploaded PDFs are processed server-side using Google Gemini (`@google/genai`) for native multimodal layout, mathematical/chemical LaTeX notation, match-list structures, and answer-key separation.
-3. **Resilient Local Fallback**: If Gemini is unconfigured or encounters transient rate limits / API failures, the ingestion pipeline seamlessly falls back to the deterministic local PDF extraction engine.
-4. **Review Gateway**: Extracted candidate questions are never auto-published or directly inserted as active questions. They remain as in-memory candidate representations until an administrator reviews, edits, and explicitly submits them.
-5. **Traceability**: Persisted questions created from ingestion batches retain a foreign key reference (`ingestion_batch_id`) pointing to their source `IngestionBatch`.
+2. **Primary Multimodal Document Understanding (Google Gemini)**: Uploaded PDFs are processed server-side using Google Gemini (`@google/genai`) for native multimodal layout, mathematical/chemical LaTeX notation, match-list structures, and answer-key separation. Output is natively enforced with JSON Schema (`responseSchema`).
+3. **Visual Asset Capture & Cropping**: For questions containing visual diagrams or figures (`hasVisual = true`), the pipeline automatically rasterizes the target page via `renderPageToImage` and executes precision in-memory cropping with `sharp` using normalized `boundingBox` coordinates. The resulting image is stored via `StorageProvider` and assigned directly to `candidate.diagram_url`.
+4. **Hybrid Mode Reconciliation**: When `EXTRACTION_ENGINE=hybrid`, if a Gemini extraction encounters critical errors or low confidence, the pipeline automatically cross-validates against the deterministic local parser, merging higher-confidence options/answers while preserving visual diagrams and audit trails.
+5. **Resilient Local Fallback**: If Gemini is unconfigured or encounters transient rate limits / API failures, the ingestion pipeline seamlessly falls back to the deterministic local PDF extraction engine.
+6. **Review Gateway**: Extracted candidate questions are never auto-published or directly inserted as active questions. They remain as in-memory candidate representations until an administrator reviews, edits, and explicitly submits them.
+7. **Traceability**: Persisted questions created from ingestion batches retain a foreign key reference (`ingestion_batch_id`) pointing to their source `IngestionBatch`.
 
 ---
 

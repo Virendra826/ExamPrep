@@ -310,13 +310,23 @@ export function normalizeGeminiResponse(
       new Set(normalizedOptions.map((o) => o.text.trim())).size === optionCount &&
       normalizedOptions.every((o) => o.text.trim().length > 0 && !o.text.startsWith('('));
 
+    // Check for unresolved trailing option markers, ignoring legitimate stem references like "(1) to (4)" or "(1) and (2)"
+    const stemWithoutContextRanges = cleanStem
+      .replace(/\([1-5A-Ea-e]\)\s*(?:to|and|or|-|,)\s*\([1-5A-Ea-e]\)/gi, '')
+      .replace(/marked as \([1-5A-Ea-e]\)/gi, '')
+      .replace(/statements? \([1-5A-Ea-e]\)/gi, '');
+
+    const hasUnresolvedMarkersInStem = /(?:\n\s*|\b)\([1-5A-Ea-e]\)\s+[A-Za-z0-9]/i.test(
+      stemWithoutContextRanges
+    );
+
     const confidence = scoreConfidence({
       optionCount,
       hasProperOptionTexts,
       hasStemText,
       hasAnswer: Boolean(resolvedCorrectAnswer),
       hasAnswerKeyMatch,
-      hasUnresolvedMarkersInStem: /\([1-5A-Ea-e]\)/.test(cleanStem),
+      hasUnresolvedMarkersInStem,
     });
 
     const isPYQ = Boolean(q.examName || q.examYear || q.questionType === 'PYQ');
