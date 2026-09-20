@@ -182,21 +182,20 @@ export class IngestionService {
       throw new ValidationError('Invalid file signature: file is not a valid PDF document');
     }
 
-    // 5. Persist file via StorageProvider
+    // 5. Persist file via StorageProvider (Private Raw Uploads Bucket)
     const originalFilename = file.originalname || 'document.pdf';
-    let storageKey: string | null = null;
+    let storageKey: string;
     try {
       const saved = await storageProvider.saveFile(
         file.buffer,
         originalFilename,
-        file.mimetype
+        file.mimetype,
+        { bucketType: 'raw' }
       );
       storageKey = saved.storageKey;
     } catch (storageErr: unknown) {
-      console.warn(
-        '[IngestionService] StorageProvider saveFile failed, continuing with in-memory buffer:',
-        storageErr instanceof Error ? storageErr.message : String(storageErr)
-      );
+      const msg = storageErr instanceof Error ? storageErr.message : String(storageErr);
+      throw new Error(`Failed to persist raw PDF to storage: ${msg}`);
     }
 
     // 6. Create IngestionBatch row in DB with status UPLOADED

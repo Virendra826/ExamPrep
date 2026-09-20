@@ -150,7 +150,8 @@ export class GeminiExtractionService {
               const saved = await storageProvider.saveFile(
                 croppedBuffer,
                 `diagram-${crypto.randomUUID()}.${ext}`,
-                rendered.mimeType || 'image/png'
+                rendered.mimeType || 'image/png',
+                { bucketType: 'diagram' }
               );
               cand.diagram_url = saved.filePath.startsWith('http')
                 ? saved.filePath

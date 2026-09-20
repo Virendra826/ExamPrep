@@ -18,6 +18,8 @@ const envSchema = z.object({
   STORAGE_DRIVER: z.enum(["local", "s3", "supabase"]).default("local"),
   SUPABASE_URL: z.string().optional(),
   SUPABASE_SERVICE_KEY: z.string().optional(),
+  SUPABASE_DIAGRAM_BUCKET: z.string().default("examprep-diagrams"),
+  SUPABASE_RAW_UPLOAD_BUCKET: z.string().default("examprep-raw-uploads"),
   SUPABASE_STORAGE_BUCKET: z.string().default("examprep-assets"),
   VISION_PROVIDER: z.enum(["disabled", "anthropic", "openai"]).default("disabled"),
   VISION_API_KEY: z.string().optional(),

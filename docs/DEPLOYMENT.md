@@ -30,7 +30,9 @@ This guide details the production architecture, environment configuration, depen
 | `STORAGE_DRIVER` | `string` | `local` | **Yes** | Storage driver: set to `supabase` in production (`local` for dev). |
 | `SUPABASE_URL` | `string` | — | **Yes** (if `supabase`) | Supabase project base URL (e.g. `https://[PROJECT_REF].supabase.co`). |
 | `SUPABASE_SERVICE_KEY` | `string` | — | **Yes** (if `supabase`) | Supabase `service_role` secret key for backend storage API operations. |
-| `SUPABASE_STORAGE_BUCKET` | `string` | `examprep-assets` | No | Target Supabase storage bucket name for PDFs and extracted diagram crops. |
+| `SUPABASE_DIAGRAM_BUCKET` | `string` | `examprep-diagrams` | No | Public Supabase storage bucket name for student-accessible extracted diagram crops. |
+| `SUPABASE_RAW_UPLOAD_BUCKET` | `string` | `examprep-raw-uploads` | No | Private Supabase storage bucket name for original source exam PDFs (admin/backend only). |
+| `SUPABASE_STORAGE_BUCKET` | `string` | `examprep-assets` | No | Legacy fallback Supabase storage bucket name. |
 | `GEMINI_API_KEY` | `string` | — | **Yes** (Recommended) | Google Gemini API key. If left **unset**, the pipeline automatically and gracefully runs the deterministic local PDF parser without failing batches. |
 | `GEMINI_MODEL` | `string` | `gemini-2.5-flash` | No | Multimodal model for PDF document analysis. |
 | `EXTRACTION_ENGINE` | `string` | `hybrid` | **Yes** | Extraction strategy: `hybrid` (recommended), `gemini`, or `local`. |
@@ -137,12 +139,26 @@ To prevent runaway Gemini API consumption or denial-of-wallet vectors, the PDF u
 
 ---
 
-## 6. Diagram Storage & Asset Lifecycle Management
+## 6. Storage Security Model & Asset Lifecycle Management
 
-### Asset Storage Architecture
+### Dual-Bucket Storage Architecture
+ExamPrep uses two logically isolated Supabase Storage buckets to ensure raw source exam papers are strictly protected while student-facing diagram assets are publicly accessible:
+
+1. **`examprep-raw-uploads` (Private)**:
+   - Contains original source PDF documents uploaded by administrators.
+   - Access is restricted to authenticated server-side service-role requests.
+   - Stored in `IngestionBatch.storage_key` as a private storage path (`examprep-raw-uploads/<uuid>.pdf`).
+   - Public CDN access is completely disabled.
+
+2. **`examprep-diagrams` (Public)**:
+   - Contains cropped question diagram assets extracted by the multimodal pipeline (`diagram-<uuid>.png`).
+   - Public read access is enabled so student test-taking interfaces can render visual figures directly.
+   - Stored in `Question.diagram_url` as a full CDN URL (`https://[PROJECT_REF].supabase.co/storage/v1/object/public/examprep-diagrams/<uuid>.png`).
+
+### Diagram Capture & Processing Flow
 1. **Diagram Capture**: When Gemini detects visual diagrams (`hasVisual = true`), `renderPageToImage` rasterizes the page in memory and `sharp` executes precision cropping using normalized bounding box coordinates.
-2. **Persistence**: The cropped image buffer is stored via `StorageProvider.saveFile` as `diagram-<uuid>.png` (typical size: 20KB – 150KB).
-3. **Question Reference**: The resulting URL is stored in `Question.diagram_url` upon batch commitment.
+2. **Persistence**: The cropped image buffer is stored via `StorageProvider.saveFile` with `{ bucketType: 'diagram' }` as `diagram-<uuid>.png` (typical size: 20KB – 150KB).
+3. **Question Reference**: The resulting public URL is stored in `Question.diagram_url` upon batch commitment.
 
 ### Known Limitations & Retention Policy (V1)
 - **Committed Questions**: Diagram images referenced by committed `Question` rows are permanent assets.
