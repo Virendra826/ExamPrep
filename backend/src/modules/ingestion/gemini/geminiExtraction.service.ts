@@ -52,12 +52,19 @@ export class GeminiExtractionService {
 
     const base64Pdf = pdfBuffer.toString('base64');
 
-    // Setup abort timeout
+    // Setup abort timeout and race with generateContent
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    let timeoutId: NodeJS.Timeout | undefined;
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        controller.abort();
+        reject(new Error(`Gemini API request timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+    });
 
     try {
-      const response = await ai.models.generateContent({
+      const generateContentPromise = ai.models.generateContent({
         model,
         contents: [
           {
@@ -82,6 +89,8 @@ export class GeminiExtractionService {
           temperature: 0.1,
         },
       });
+
+      const response = await Promise.race([generateContentPromise, timeoutPromise]);
 
       const textResponse = response.text || '';
       if (!textResponse.trim()) {
