@@ -107,8 +107,8 @@ For production deployment of ExamPrep, **`hybrid`** is the designated production
 In Render's build settings, set the build command to:
 
 ```bash
-# Standard Monorepo Build Command
-npm install --include=optional && npm run build
+# Standard Backend Build Command on Render
+npm install --include=optional --include=dev && npm run build
 ```
 
 If cross-platform lockfile discrepancies occur during container deployment, specify the exact Linux binary flag:
