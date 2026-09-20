@@ -14,9 +14,11 @@ export class ApiError extends Error {
   }
 }
 
-export const API_BASE_URL =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/+$/, "") ||
-  "http://localhost:4000/api/v1";
+export const API_BASE_URL = (() => {
+  const envUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim().replace(/\/+$/, "");
+  if (!envUrl) return "http://localhost:4000/api/v1";
+  return envUrl.endsWith("/api/v1") ? envUrl : `${envUrl}/api/v1`;
+})();
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined | null>;
