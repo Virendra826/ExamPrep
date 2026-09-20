@@ -40,8 +40,10 @@ healthRouter.get("/ping", (_req: Request, res: Response) => {
 healthRouter.get("/", (_req: Request, res: Response) => {
   res.status(200).json({
     name: "ExamPrep API",
-    version: "1.0.0",
+    version: "1.1.0-storage-isolation",
     status: "online",
+    storageDriver: env.STORAGE_DRIVER,
     health: "/api/v1/health",
   });
 });
+
