@@ -184,11 +184,20 @@ export class IngestionService {
 
     // 5. Persist file via StorageProvider
     const originalFilename = file.originalname || 'document.pdf';
-    const { storageKey } = await storageProvider.saveFile(
-      file.buffer,
-      originalFilename,
-      file.mimetype
-    );
+    let storageKey: string | null = null;
+    try {
+      const saved = await storageProvider.saveFile(
+        file.buffer,
+        originalFilename,
+        file.mimetype
+      );
+      storageKey = saved.storageKey;
+    } catch (storageErr: unknown) {
+      console.warn(
+        '[IngestionService] StorageProvider saveFile failed, continuing with in-memory buffer:',
+        storageErr instanceof Error ? storageErr.message : String(storageErr)
+      );
+    }
 
     // 6. Create IngestionBatch row in DB with status UPLOADED
     const batch = await prisma.ingestionBatch.create({
