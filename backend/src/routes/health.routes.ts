@@ -36,3 +36,12 @@ healthRouter.get("/health", async (_req: Request, res: Response) => {
 healthRouter.get("/ping", (_req: Request, res: Response) => {
   res.status(200).json({ status: "ok" });
 });
+
+healthRouter.get("/", (_req: Request, res: Response) => {
+  res.status(200).json({
+    name: "ExamPrep API",
+    version: "1.0.0",
+    status: "online",
+    health: "/api/v1/health",
+  });
+});
