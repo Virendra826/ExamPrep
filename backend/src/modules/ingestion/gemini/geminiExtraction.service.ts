@@ -135,7 +135,30 @@ export class GeminiExtractionService {
           schemaResult.data.questions.find((q) => q.questionNumber === (i + 1)) ||
           schemaResult.data.questions[i];
 
-        if (
+        // Case A: Diagram URL was extracted as base64 data URL from text/stem
+        if (cand.diagram_url && cand.diagram_url.startsWith('data:image/')) {
+          try {
+            const match = cand.diagram_url.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
+            if (match) {
+              const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+              const mimeType = `image/${match[1]}`;
+              const imgBuffer = Buffer.from(match[2], 'base64');
+              const saved = await storageProvider.saveFile(
+                imgBuffer,
+                `diagram-${crypto.randomUUID()}.${ext}`,
+                mimeType,
+                { bucketType: 'diagram' }
+              );
+              cand.diagram_url = saved.filePath.startsWith('http')
+                ? saved.filePath
+                : `/uploads/${saved.storageKey}`;
+            }
+          } catch (saveErr: unknown) {
+            console.warn(`[GeminiExtraction] Base64 diagram upload failed for Q${rawQ?.questionNumber}:`, saveErr);
+          }
+        }
+        // Case B: Question has visual element needing rasterization & cropping
+        else if (
           (rawQ?.hasVisual || (rawQ?.visualElements && rawQ.visualElements.length > 0)) &&
           !cand.diagram_url
         ) {

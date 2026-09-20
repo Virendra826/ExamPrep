@@ -393,9 +393,12 @@ export class IngestionService {
             const saved = await storageProvider.saveFile(
               imgBuffer,
               `diagram-${crypto.randomUUID()}.${ext}`,
-              mimeType
+              mimeType,
+              { bucketType: 'diagram' }
             );
-            diagramUrl = `/uploads/${saved.storageKey}`;
+            diagramUrl = saved.filePath.startsWith('http')
+              ? saved.filePath
+              : `/uploads/${saved.storageKey}`;
           }
         }
 
