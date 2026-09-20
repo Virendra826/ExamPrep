@@ -9,6 +9,7 @@ import {
   requireAuth,
   requireRole,
 } from "./middleware/index.js";
+import path from "path";
 import { healthRouter } from "./routes/health.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { subjectRouter } from "./modules/subjects/subject.routes.js";
@@ -38,6 +39,9 @@ app.use(express.urlencoded({ extended: true }));
 
 // Cookie parsing (for HTTP-only JWTs and refresh tokens)
 app.use(cookieParser());
+
+// Static file uploads serving for local storage provider
+app.use("/uploads", express.static(path.resolve(process.cwd(), "uploads")));
 
 // API Routes
 app.use("/", healthRouter);

@@ -6,7 +6,7 @@ export class GeminiClientFactory {
   private apiKey: string | undefined;
 
   constructor(apiKey?: string) {
-    this.apiKey = apiKey || env.GEMINI_API_KEY;
+    this.apiKey = apiKey;
   }
 
   isConfigured(): boolean {
@@ -15,7 +15,7 @@ export class GeminiClientFactory {
   }
 
   getApiKey(): string | undefined {
-    return this.apiKey || env.GEMINI_API_KEY;
+    return this.apiKey !== undefined ? this.apiKey : env.GEMINI_API_KEY;
   }
 
   getClient(): GoogleGenAI {

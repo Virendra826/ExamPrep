@@ -27,7 +27,10 @@ This guide details the production architecture, environment configuration, depen
 | `JWT_ACCESS_SECRET` | `string` | — | **Yes** | Minimum 16-character cryptographic secret for signing short-lived access tokens. |
 | `JWT_REFRESH_SECRET` | `string` | — | **Yes** | Minimum 16-character cryptographic secret for signing persistent refresh tokens. |
 | `CORS_ORIGIN` | `string` | `http://localhost:5173` | **Yes** | Production frontend domain (e.g. `https://examprep.dev`). |
-| `STORAGE_DRIVER` | `string` | `local` | **Yes** | Storage driver: set to `supabase` or `s3` in production. |
+| `STORAGE_DRIVER` | `string` | `local` | **Yes** | Storage driver: set to `supabase` in production (`local` for dev). |
+| `SUPABASE_URL` | `string` | — | **Yes** (if `supabase`) | Supabase project base URL (e.g. `https://[PROJECT_REF].supabase.co`). |
+| `SUPABASE_SERVICE_KEY` | `string` | — | **Yes** (if `supabase`) | Supabase `service_role` secret key for backend storage API operations. |
+| `SUPABASE_STORAGE_BUCKET` | `string` | `examprep-assets` | No | Target Supabase storage bucket name for PDFs and extracted diagram crops. |
 | `GEMINI_API_KEY` | `string` | — | **Yes** (Recommended) | Google Gemini API key. If left **unset**, the pipeline automatically and gracefully runs the deterministic local PDF parser without failing batches. |
 | `GEMINI_MODEL` | `string` | `gemini-2.5-flash` | No | Multimodal model for PDF document analysis. |
 | `EXTRACTION_ENGINE` | `string` | `hybrid` | **Yes** | Extraction strategy: `hybrid` (recommended), `gemini`, or `local`. |

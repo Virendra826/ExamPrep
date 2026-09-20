@@ -152,7 +152,9 @@ export class GeminiExtractionService {
                 `diagram-${crypto.randomUUID()}.${ext}`,
                 rendered.mimeType || 'image/png'
               );
-              cand.diagram_url = `/uploads/${saved.storageKey}`;
+              cand.diagram_url = saved.filePath.startsWith('http')
+                ? saved.filePath
+                : `/uploads/${saved.storageKey}`;
             }
           } catch (visErr: unknown) {
             console.warn(
